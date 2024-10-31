@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+sb1-Astro.zip
 
 # Editor directories and files
 .vscode/*
