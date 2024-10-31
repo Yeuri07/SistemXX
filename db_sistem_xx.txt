@@ -1,0 +1,728 @@
+-- XX Social Network Schema (80 Tables)
+
+-- Users and Authentication
+CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(50) UNIQUE NOT NULL,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  last_login TIMESTAMP
+);
+
+CREATE TABLE user_profiles (
+  user_id INT PRIMARY KEY,
+  full_name VARCHAR(100),
+  bio TEXT,
+  location VARCHAR(100),
+  website VARCHAR(255),
+  birth_date DATE,
+  profile_picture_url VARCHAR(255),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE user_settings (
+  user_id INT PRIMARY KEY,
+  language VARCHAR(10),
+  theme VARCHAR(20),
+  notification_preferences JSON,
+  privacy_settings JSON,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE sessions (
+  id VARCHAR(255) PRIMARY KEY,
+  user_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Posts and Content
+CREATE TABLE posts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  content TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE post_media (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  post_id INT NOT NULL,
+  media_type ENUM('image', 'video', 'audio', 'document'),
+  media_url VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (post_id) REFERENCES posts(id)
+);
+
+CREATE TABLE hashtags (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50) UNIQUE NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE post_hashtags (
+  post_id INT,
+  hashtag_id INT,
+  PRIMARY KEY (post_id, hashtag_id),
+  FOREIGN KEY (post_id) REFERENCES posts(id),
+  FOREIGN KEY (hashtag_id) REFERENCES hashtags(id)
+);
+
+CREATE TABLE mentions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  post_id INT,
+  user_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (post_id) REFERENCES posts(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Interactions
+CREATE TABLE likes (
+  user_id INT,
+  post_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, post_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (post_id) REFERENCES posts(id)
+);
+
+CREATE TABLE comments (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  post_id INT,
+  user_id INT,
+  content TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (post_id) REFERENCES posts(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE shares (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  post_id INT,
+  shared_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (post_id) REFERENCES posts(id)
+);
+
+-- Relationships
+CREATE TABLE followers (
+  follower_id INT,
+  followed_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (follower_id, followed_id),
+  FOREIGN KEY (follower_id) REFERENCES users(id),
+  FOREIGN KEY (followed_id) REFERENCES users(id)
+);
+
+CREATE TABLE blocks (
+  blocker_id INT,
+  blocked_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (blocker_id, blocked_id),
+  FOREIGN KEY (blocker_id) REFERENCES users(id),
+  FOREIGN KEY (blocked_id) REFERENCES users(id)
+);
+
+-- Messages
+CREATE TABLE conversations (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE conversation_participants (
+  conversation_id INT,
+  user_id INT,
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (conversation_id, user_id),
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE messages (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  conversation_id INT,
+  sender_id INT,
+  content TEXT,
+  sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+  FOREIGN KEY (sender_id) REFERENCES users(id)
+);
+
+CREATE TABLE message_status (
+  message_id INT,
+  user_id INT,
+  status ENUM('sent', 'delivered', 'read'),
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (message_id, user_id),
+  FOREIGN KEY (message_id) REFERENCES messages(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Notifications
+CREATE TABLE notifications (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  type VARCHAR(50),
+  content JSON,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Groups
+CREATE TABLE groups (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE group_members (
+  group_id INT,
+  user_id INT,
+  role ENUM('member', 'moderator', 'admin'),
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (group_id, user_id),
+  FOREIGN KEY (group_id) REFERENCES groups(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE group_posts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  group_id INT,
+  user_id INT,
+  content TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (group_id) REFERENCES groups(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Events
+CREATE TABLE events (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  start_time DATETIME,
+  end_time DATETIME,
+  location VARCHAR(255),
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE event_attendees (
+  event_id INT,
+  user_id INT,
+  status ENUM('interested', 'going', 'not_going'),
+  PRIMARY KEY (event_id, user_id),
+  FOREIGN KEY (event_id) REFERENCES events(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Pages
+CREATE TABLE pages (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100) NOT NULL,
+  category VARCHAR(50),
+  description TEXT,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE page_likes (
+  page_id INT,
+  user_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (page_id, user_id),
+  FOREIGN KEY (page_id) REFERENCES pages(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE page_posts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  page_id INT,
+  content TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (page_id) REFERENCES pages(id)
+);
+
+-- Polls
+CREATE TABLE polls (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  question TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  ends_at TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE poll_options (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  poll_id INT,
+  option_text VARCHAR(255),
+  FOREIGN KEY (poll_id) REFERENCES polls(id)
+);
+
+CREATE TABLE poll_votes (
+  poll_id INT,
+  user_id INT,
+  option_id INT,
+  voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (poll_id, user_id),
+  FOREIGN KEY (poll_id) REFERENCES polls(id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (option_id) REFERENCES poll_options(id)
+);
+
+-- Stories
+CREATE TABLE stories (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  media_url VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE story_views (
+  story_id INT,
+  user_id INT,
+  viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (story_id, user_id),
+  FOREIGN KEY (story_id) REFERENCES stories(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Ads
+CREATE TABLE ad_campaigns (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  advertiser_id INT,
+  name VARCHAR(100),
+  budget DECIMAL(10, 2),
+  start_date DATE,
+  end_date DATE,
+  status ENUM('draft', 'active', 'paused', 'completed'),
+  FOREIGN KEY (advertiser_id) REFERENCES users(id)
+);
+
+CREATE TABLE ads (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  campaign_id INT,
+  title VARCHAR(255),
+  description TEXT,
+  media_url VARCHAR(255),
+  target_audience JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES ad_campaigns(id)
+);
+
+CREATE TABLE ad_impressions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  ad_id INT,
+  user_id INT,
+  impressed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ad_id) REFERENCES ads(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE ad_clicks (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  ad_id INT,
+  user_id INT,
+  clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ad_id) REFERENCES ads(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Marketplace
+CREATE TABLE marketplace_listings (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  seller_id INT,
+  title VARCHAR(255),
+  description TEXT,
+  price DECIMAL(10, 2),
+  category VARCHAR(50),
+  location VARCHAR(100),
+  status ENUM('active', 'sold', 'expired'),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (seller_id) REFERENCES users(id)
+);
+
+CREATE TABLE marketplace_images (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  listing_id INT,
+  image_url VARCHAR(255),
+  FOREIGN KEY (listing_id) REFERENCES marketplace_listings(id)
+);
+
+CREATE TABLE marketplace_saved_listings (
+  user_id INT,
+  listing_id INT,
+  saved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, listing_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (listing_id) REFERENCES marketplace_listings(id)
+);
+
+-- Jobs
+CREATE TABLE job_listings (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  company_id INT,
+  title VARCHAR(255),
+  description TEXT,
+  location VARCHAR(100),
+  salary_range VARCHAR(50),
+  job_type ENUM('full-time', 'part-time', 'contract', 'internship'),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES pages(id)
+);
+
+CREATE TABLE job_applications (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  job_id INT,
+  applicant_id INT,
+  resume_url VARCHAR(255),
+  cover_letter TEXT,
+  status ENUM('submitted', 'reviewed', 'interviewed', 'offered', 'rejected'),
+  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (job_id) REFERENCES job_listings(id),
+  FOREIGN KEY (applicant_id) REFERENCES users(id)
+);
+
+-- Content Reporting
+CREATE TABLE reported_content (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  reporter_id INT,
+  content_type ENUM('post', 'comment', 'message', 'user'),
+  content_id INT,
+  reason TEXT,
+  status ENUM('pending', 'reviewed', 'actioned', 'dismissed'),
+  reported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (reporter_id) REFERENCES users(id)
+);
+
+-- User Achievements
+CREATE TABLE achievements (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100),
+  description TEXT,
+  icon_url VARCHAR(255)
+);
+
+CREATE TABLE user_achievements (
+  user_id INT,
+  achievement_id INT,
+  earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, achievement_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (achievement_id) REFERENCES achievements(id)
+);
+
+-- Content Categories
+CREATE TABLE content_categories (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50),
+  description TEXT
+);
+
+CREATE TABLE post_categories (
+  post_id INT,
+  category_id INT,
+  PRIMARY KEY (post_id, category_id),
+  FOREIGN KEY (post_id) REFERENCES posts(id),
+  FOREIGN KEY (category_id) REFERENCES content_categories(id)
+);
+
+-- User Interests
+CREATE TABLE interests (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50)
+);
+
+CREATE TABLE user_interests (
+  user_id INT,
+  interest_id INT,
+  PRIMARY KEY (user_id, interest_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (interest_id) REFERENCES interests(id)
+);
+
+-- Content Recommendations
+CREATE TABLE content_recommendations (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  content_type ENUM('post', 'page', 'group', 'event'),
+  content_id INT,
+  score FLOAT,
+  recommended_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- User Activity Logs
+CREATE TABLE user_activity_logs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  activity_type VARCHAR(50),
+  activity_details JSON,
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Content Moderation
+CREATE TABLE moderation_queue (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  content_type ENUM('post', 'comment', 'message', 'user'),
+  content_id INT,
+  flagged_by INT,
+  reason TEXT,
+  status ENUM('pending', 'approved', 'rejected'),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (flagged_by) REFERENCES users(id)
+);
+
+-- User Verification
+CREATE TABLE user_verification_requests (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  document_url VARCHAR(255),
+  status ENUM('pending', 'approved', 'rejected'),
+  submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Content Collections
+CREATE TABLE collections (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  name VARCHAR(100),
+  description TEXT,
+  is_private BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE collection_items (
+  collection_id INT,
+  content_type ENUM('post', 'comment', 'page'),
+  content_id INT,
+  added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (collection_id, content_type, content_id),
+  FOREIGN KEY (collection_id) REFERENCES collections(id)
+);
+
+-- User Skills
+CREATE TABLE skills (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50)
+);
+
+CREATE TABLE user_skills (
+  user_id INT,
+  skill_id INT,
+  endorsement_count INT DEFAULT 0,
+  PRIMARY KEY (user_id, skill_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (skill_id) REFERENCES skills(id)
+);
+
+-- Content Translations
+CREATE TABLE content_translations (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  content_type ENUM('post', 'comment', 'page'),
+  content_id INT,
+  language VARCHAR(10),
+  translated_content TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User Feedback
+CREATE TABLE user_feedback (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  feedback_type ENUM('bug', 'feature_request', 'general'),
+  content TEXT,
+  status ENUM('new', 'in_progress', 'resolved', 'closed'),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Content Scheduling
+CREATE TABLE scheduled_posts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  content TEXT,
+  scheduled_time TIMESTAMP,
+  status ENUM('pending', 'published', 'failed'),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- User Subscriptions
+CREATE TABLE subscription_tiers (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50),
+  price DECIMAL(10, 2),
+  features JSON
+);
+
+CREATE TABLE user_subscriptions (
+  user_id INT,
+  tier_id INT,
+  start_date DATE,
+  end_date DATE,
+  status ENUM('active', 'cancelled', 'expired'),
+  PRIMARY KEY (user_id, tier_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (tier_id) REFERENCES subscription_tiers(id)
+);
+
+-- Content Licensing
+CREATE TABLE content_licenses (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100),
+  description TEXT,
+  terms TEXT
+);
+
+CREATE TABLE user_content_licenses (
+  user_id INT,
+  content_type ENUM('post', 'image', 'video'),
+  content_id INT,
+  license_id INT,
+  PRIMARY KEY (user_id, content_type, content_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (license_id) REFERENCES content_licenses(id)
+);
+
+-- User Badges
+CREATE TABLE badges (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50),
+  description TEXT,
+  icon_url VARCHAR(255)
+);
+
+CREATE TABLE user_badges (
+  user_id INT,
+  badge_id INT,
+  awarded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, badge_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (badge_id) REFERENCES badges(id)
+);
+
+-- Content Revisions
+CREATE TABLE content_revisions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  content_type ENUM('post', 'comment', 'page'),
+  content_id INT,
+  user_id INT,
+  revision_content TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- User Polls
+CREATE TABLE user_polls (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  question TEXT,
+  options JSON,
+  start_date TIMESTAMP,
+  end_date TIMESTAMP,
+  is_anonymous BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE user_poll_votes (
+  poll_id INT,
+  user_id INT,
+  option_id INT,
+  voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (poll_id, user_id),
+  FOREIGN KEY (poll_id) REFERENCES user_polls(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Content Bookmarks
+CREATE TABLE bookmarks (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  content_type ENUM('post', 'comment', 'page'),
+  content_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- User Reactions
+CREATE TABLE reaction_types (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(20),
+  icon_url VARCHAR(255)
+);
+
+CREATE TABLE content_reactions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  content_type ENUM('post', 'comment', 'message'),
+  content_id INT,
+  reaction_type_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (reaction_type_id) REFERENCES reaction_types(id)
+);
+
+-- User Mentions
+CREATE TABLE user_mentions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  content_type ENUM('post', 'comment', 'message'),
+  content_id INT,
+  mentioned_user_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (mentioned_user_id) REFERENCES users(id)
+);
+
+
+
+**
+1.User Management: Tables for users, profiles, settings, and authentication.
+2.Content: Tables for posts, media, hashtags, and categories.
+3.Interactions: Likes, comments, shares, and reactions.
+4.Relationships: Followers and blocks.
+5.Messaging: Conversations and messages.
+6.Notifications: User notifications for various events.
+7.Groups and Pages: For community features.
+8.Events: Event management and attendees.
+9.Polls: User-created polls and voting.
+10.Stories: Ephemeral content similar to Instagram stories.
+11.Advertising: Ad campaigns, impressions, and clicks.
+12.arketplace: For buying and selling items.
+13.Jobs: Job listings and applications.
+14.Content Moderation: Reporting and moderation queue.
+15.Achievements and Badges: User rewards and recognition.
+16.Interests and Skills: User profiling.
+17.Content Recommendations: Personalized content suggestions.
+18.Activity Logging: Tracking user activities.
+19.Verification: User verification process.
+20.Collections: User-curated content collections.
+21.Translations: Multi-language support for content.
+22.Feedback: User feedback and feature requests.
+23.Scheduling: Post scheduling functionality.
+24.Subscriptions: Paid subscription tiers.
+25.Content Licensing: Managing rights for user-generated content.
+26.Revisions: Tracking changes to content.
+27.Bookmarks: Saving content for later.
+28.Mentions: Tracking user mentions in various content types.
+**
