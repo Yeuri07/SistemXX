@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Home, Bell, Mail, User, LogOut } from 'lucide-react'
 import Feed from './components/Feed'
 import Profile from './components/Profile'
@@ -12,23 +12,44 @@ function App() {
   const [activeTab, setActiveTab] = useState('feed')
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
+  const [authToken, setAuthToken] = useState('')
   const [isRegistering, setIsRegistering] = useState(false)
 
-  const handleLogin = (user) => {
+  useEffect(() => {
+    // Check for stored auth data
+    const storedUser = localStorage.getItem('currentUser')
+    const storedToken = localStorage.getItem('authToken')
+    if (storedUser && storedToken) {
+      setCurrentUser(JSON.parse(storedUser))
+      setAuthToken(storedToken)
+      setIsLoggedIn(true)
+    }
+  }, [])
+
+  const handleLogin = (user, token) => {
     setIsLoggedIn(true)
     setCurrentUser(user)
+    setAuthToken(token)
+    localStorage.setItem('currentUser', JSON.stringify(user))
+    localStorage.setItem('authToken', token)
   }
 
-  const handleRegister = (user) => {
+  const handleRegister = (user, token) => {
     setIsLoggedIn(true)
     setCurrentUser(user)
+    setAuthToken(token)
     setIsRegistering(false)
+    localStorage.setItem('currentUser', JSON.stringify(user))
+    localStorage.setItem('authToken', token)
   }
 
   const handleLogout = () => {
     setIsLoggedIn(false)
     setCurrentUser(null)
+    setAuthToken('')
     setActiveTab('feed')
+    localStorage.removeItem('currentUser')
+    localStorage.removeItem('authToken')
   }
 
   const renderContent = () => {
@@ -41,7 +62,7 @@ function App() {
 
     switch (activeTab) {
       case 'feed':
-        return <Feed currentUser={currentUser} />
+        return <Feed currentUser={currentUser} authToken={authToken} />
       case 'profile':
         return <Profile user={currentUser} />
       case 'notifications':
@@ -49,7 +70,7 @@ function App() {
       case 'messages':
         return <Messages currentUser={currentUser} />
       default:
-        return <Feed currentUser={currentUser} />
+        return <Feed currentUser={currentUser} authToken={authToken} />
     }
   }
 
