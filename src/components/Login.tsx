@@ -1,20 +1,34 @@
 import React, { useState } from 'react';
 import { loginUser } from '../services/api';
 
-const Login = ({ onLogin }) => {
+interface LoginProps {
+  onLogin: (user: any, token: string) => void;
+}
+
+const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username && password) {
-      const success = await loginUser(username, password);
-      if (success) {
-        onLogin({ username });
+    setError('');
+    
+    if (!username || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    try {
+      const response = await loginUser(username, password);
+      if (response && response.token) {
+        onLogin({ username }, response.token);
       } else {
-        setError('Invalid username or password');
+        setError('Invalid credentials');
       }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('An error occurred during login');
     }
   };
 
