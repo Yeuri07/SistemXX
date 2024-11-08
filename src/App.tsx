@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Home, Bell, Mail, User, LogOut } from 'lucide-react'
+// import { Home, Bell, Mail, User, LogOut } from 'lucide-react'
 import Feed from './components/Feed'
 import Profile from './components/Profile'
 import Notifications from './components/Notifications'
@@ -26,7 +26,7 @@ function App() {
     }
   }, [])
 
-  const handleLogin = (user, token) => {
+  const handleLogin = (user, token ) => {
     setIsLoggedIn(true)
     setCurrentUser(user)
     setAuthToken(token)
@@ -59,7 +59,7 @@ function App() {
       }
       return <Login onLogin={handleLogin} />
     }
-
+    
     switch (activeTab) {
       case 'feed':
         return <Feed currentUser={currentUser} authToken={authToken} />
