@@ -19,7 +19,6 @@ const Register: React.FC<RegisterProps> = ({ onRegister }) => {
       try {
         const result = await registerUser(username, password, email);
         if (result) {
-          onRegister({ username }, result.token);
           navigate('/login');
         } else {
           setError('Error registering user. Username or email might already exist.');

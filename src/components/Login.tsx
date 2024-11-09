@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { loginUser } from '../services/api';
 
 interface LoginProps {
@@ -9,6 +10,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +25,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const response = await loginUser(username, password);
       if (response && response.token) {
         onLogin({ username }, response.token);
+        navigate('/notifications');
       } else {
         setError('Invalid credentials');
       }
@@ -70,6 +73,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           >
             Sign In
           </button>
+          <Link
+            to="/register"
+            className="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800"
+          >
+            Create an account
+          </Link>
         </div>
       </form>
     </div>
