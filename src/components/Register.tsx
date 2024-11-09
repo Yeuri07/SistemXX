@@ -1,19 +1,26 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { registerUser } from '../services/api';
 
-const Register = ({ onRegister }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
+interface RegisterProps {
+  onRegister: (user: any, token: string) => void;
+}
 
-  const handleSubmit = async (e) => {
+const Register: React.FC<RegisterProps> = ({ onRegister }) => {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (username && password && email) {
       try {
-        const success = await registerUser(username, password, email);
-        if (success) {
-          onRegister({ username });
+        const result = await registerUser(username, password, email);
+        if (result) {
+          onRegister({ username }, result.token);
+          navigate('/login');
         } else {
           setError('Error registering user. Username or email might already exist.');
         }
@@ -80,6 +87,12 @@ const Register = ({ onRegister }) => {
           >
             Register
           </button>
+          <Link
+            to="/login"
+            className="inline-block align-baseline font-bold text-sm text-blue-500 hover:text-blue-800"
+          >
+            Already have an account?
+          </Link>
         </div>
       </form>
     </div>
