@@ -25,7 +25,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const response = await loginUser(username, password);
       if (response && response.token) {
         onLogin({ username }, response.token);
-        navigate('/notifications');
+        navigate('/');
       } else {
         setError('Invalid credentials');
       }
