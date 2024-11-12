@@ -18,7 +18,7 @@ interface Post {
   username: string;
 }
 
-export async function registerUser(username: string, password: string, email: string): Promise<AuthResponse | null> {
+export async function registerUser(username: string,password: string, email: string): Promise<AuthResponse | null> {
   try {
     const response = await fetch(`${API_URL}/register`, {
       method: 'POST',
