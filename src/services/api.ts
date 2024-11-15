@@ -14,9 +14,13 @@ interface AuthResponse {
 interface Post {
   id: number;
   content: string;
+  media_url?: string;
+  media_type?: 'image' | 'video';
   created_at: string;
   username: string;
 }
+
+
 
 export async function registerUser(username: string, password: string, email: string): Promise<AuthResponse | null> {
   try {
@@ -58,15 +62,20 @@ export async function loginUser(username: string, password: string): Promise<Aut
   }
 }
 
-export async function createPost(content: string, token: string): Promise<Post | null> {
+export async function createPost(content: string, media?: File, token: string): Promise<Post | null> {
   try {
+    const formData = new FormData();
+    formData.append('content', content);
+    if (media) {
+      formData.append('media', media);
+    }
+
     const response = await fetch(`${API_URL}/posts`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ content }),
+      body: formData,
     });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
