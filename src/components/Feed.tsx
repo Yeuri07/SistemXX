@@ -1,28 +1,21 @@
-import React, { useEffect, useState } from 'react'
-import { Heart, MessageCircle, Repeat2, Share } from 'lucide-react'
-import { createPost, getPosts } from '../services/api'
-
-// const initialTweets = [
-//   { id: 1, author: 'John Doe', username: 'johndoe', content: 'Just had an amazing coffee! ☕️ #MorningVibes', likes: 15, retweets: 5, replies: 3, timestamp: '2h' },
-//   { id: 2, author: 'Jane Smith', username: 'janesmith', content: 'Excited for the weekend! Any plans? 🎉', likes: 20, retweets: 8, replies: 7, timestamp: '4h' },
-// ]
-
-// const TweetForm = ({ onTweet }) => {
-//   const [content, setContent] = useState('')
-
-//   const handleSubmit = (e) => {
-//     e.preventDefault()
-//     if (content.trim()) {
-//       onTweet(content)
-//       setContent('')
-//     }
-//   }
+import React, { useState, useEffect } from 'react'
+import { Heart, MessageCircle, Repeat2, Share, Image, Film } from 'lucide-react'
+import { createPost, getPosts, likePost, unlikePost, getPostLikes, createComment, getComments } from '../services/api'
 
 interface Tweet {
   id: number;
   content: string;
+  media_url?: string;
+  media_type?: 'image' | 'video';
   created_at: string;
   username: string;
+}
+
+interface Comment {
+  id: number;
+  content: string;
+  username: string;
+  created_at: string;
 }
 
 interface TweetFormProps {
@@ -33,23 +26,39 @@ interface TweetFormProps {
 
 const TweetForm: React.FC<TweetFormProps> = ({ onTweet, currentUser, authToken }) => {
   const [content, setContent] = useState('')
+  const [media, setMedia] = useState<File | null>(null)
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null)
   const [error, setError] = useState('')
- 
+
+  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
+        setMedia(file)
+        const preview = URL.createObjectURL(file)
+        setMediaPreview(preview)
+      } else {
+        setError('Please upload only image or video files')
+      }
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
     
-    if (!content.trim()) {
- 
-      setError('Please enter some content for your post.')
+    if (!content.trim() && !media) {
+      setError('Please enter some content or add media for your post.')
       return
     }
 
     try {
-      const post = await createPost(content, authToken)
+      const post = await createPost(content, media || undefined, authToken)
       if (post) {
         onTweet()
         setContent('')
+        setMedia(null)
+        setMediaPreview(null)
       } else {
         setError('Failed to create post. Please try again.')
       }
@@ -59,8 +68,13 @@ const TweetForm: React.FC<TweetFormProps> = ({ onTweet, currentUser, authToken }
     }
   }
 
+  const removeMedia = () => {
+    setMedia(null)
+    setMediaPreview(null)
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="mb-4">
+    <form onSubmit={handleSubmit} className="mb-4 p-4 border border-gray-200 rounded-lg">
       <textarea
         className="w-full p-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
         rows={3}
@@ -68,13 +82,56 @@ const TweetForm: React.FC<TweetFormProps> = ({ onTweet, currentUser, authToken }
         value={content}
         onChange={(e) => setContent(e.target.value)}
       ></textarea>
+      
+      {mediaPreview && (
+        <div className="relative mt-2">
+          {media?.type.startsWith('image/') ? (
+            <img src={mediaPreview} alt="Preview" className="max-h-96 rounded-lg" />
+          ) : (
+            <video src={mediaPreview} className="max-h-96 rounded-lg" controls />
+          )}
+          <button
+            type="button"
+            onClick={removeMedia}
+            className="absolute top-2 right-2 bg-gray-800 bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-      <button
-        type="submit"
-        className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-full font-bold hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-      >
-        Tweet
-      </button>
+      
+      <div className="mt-2 flex justify-between items-center">
+        <div className="flex gap-2">
+          <label className="cursor-pointer text-blue-500 hover:text-blue-600">
+            <Image className="w-5 h-5" />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleMediaChange}
+              disabled={!!media}
+            />
+          </label>
+          <label className="cursor-pointer text-blue-500 hover:text-blue-600">
+            <Film className="w-5 h-5" />
+            <input
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={handleMediaChange}
+              disabled={!!media}
+            />
+          </label>
+        </div>
+        <button
+          type="submit"
+          className="px-4 py-2 bg-blue-500 text-white rounded-full font-bold hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          Tweet
+        </button>
+      </div>
     </form>
   )
 }
@@ -88,50 +145,67 @@ interface TweetProps {
 const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
   const [likes, setLikes] = useState(0)
   const [isLiked, setIsLiked] = useState(false)
-  const [comments, setComments] = useState([])
+  const [comments, setComments] = useState<Comment[]>([])
   const [showComments, setShowComments] = useState(false)
   const [newComment, setNewComment] = useState('')
 
-  // useEffect(() => {
-  //   fetchLikes()
-  //   fetchComments()
-  // }, [])
+  useEffect(() => {
+    fetchLikes()
+    fetchComments()
+  }, [tweet.id])
 
-  // const fetchLikes = async () => {
-  //   const likesCount = await getPostLikes(tweet.id, authToken)
-  //   setLikes(likesCount)
-  // }
+  const fetchLikes = async () => {
+    try {
+      const likesCount = await getPostLikes(tweet.id, authToken)
+      setLikes(likesCount)
+    } catch (error) {
+      console.error('Error fetching likes:', error)
+    }
+  }
 
-  // const fetchComments = async () => {
-  //   const fetchedComments = await getComments(tweet.id, authToken)
-  //   setComments(fetchedComments)
-  // }
+  const fetchComments = async () => {
+    try {
+      const fetchedComments = await getComments(tweet.id, authToken)
+      setComments(fetchedComments || [])
+    } catch (error) {
+      console.error('Error fetching comments:', error)
+      setComments([])
+    }
+  }
 
-  // const handleLike = async () => {
-  //   if (isLiked) {
-  //     const success = await unlikePost(tweet.id, authToken)
-  //     if (success) {
-  //       setLikes(likes - 1)
-  //       setIsLiked(false)
-  //     }
-  //   } else {
-  //     const success = await likePost(tweet.id, authToken)
-  //     if (success) {
-  //       setLikes(likes + 1)
-  //       setIsLiked(true)
-  //     }
-  //   }
-  // }
+  const handleLike = async () => {
+    try {
+      if (isLiked) {
+        const success = await unlikePost(tweet.id, authToken)
+        if (success) {
+          setLikes(likes - 1)
+          setIsLiked(false)
+        }
+      } else {
+        const success = await likePost(tweet.id, authToken)
+        if (success) {
+          setLikes(likes + 1)
+          setIsLiked(true)
+        }
+      }
+    } catch (error) {
+      console.error('Error handling like:', error)
+    }
+  }
 
-  // const handleComment = async () => {
-  //   if (newComment.trim()) {
-  //     const success = await createComment(tweet.id, newComment, authToken)
-  //     if (success) {
-  //       setNewComment('')
-  //       fetchComments()
-  //     }
-  //   }
-  // }
+  const handleComment = async () => {
+    if (newComment.trim()) {
+      try {
+        const success = await createComment(tweet.id, newComment, authToken)
+        if (success) {
+          setNewComment('')
+          fetchComments()
+        }
+      } catch (error) {
+        console.error('Error creating comment:', error)
+      }
+    }
+  }
 
   return (
     <div className="border-b border-gray-200 p-4">
@@ -147,8 +221,27 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
         </div>
       </div>
       <p className="mb-2">{tweet.content}</p>
+      
+      {tweet.media_url && (
+        <div className="mb-2">
+          {tweet.media_type === 'image' ? (
+            <img 
+              src={`http://localhost:5000${tweet.media_url}`} 
+              alt="Post media" 
+              className="rounded-lg max-h-96 w-full object-cover" 
+            />
+          ) : (
+            <video 
+              src={`http://localhost:5000${tweet.media_url}`} 
+              className="rounded-lg max-h-96 w-full" 
+              controls 
+            />
+          )}
+        </div>
+      )}
+
       <div className="flex justify-between text-gray-500">
-        <button className={`flex items-center ${isLiked ? 'text-red-500' : ''}`}>
+        <button onClick={handleLike} className={`flex items-center ${isLiked ? 'text-red-500' : ''}`}>
           <Heart className="w-5 h-5 mr-1" />
           <span>{likes}</span>
         </button>
@@ -165,10 +258,20 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
       </div>
       {showComments && (
         <div className="mt-4">
-          {comments.map((comment: any) => (
-            <div key={comment.id} className="mb-2">
-              <p className="font-bold">{comment.username}</p>
-              <p>{comment.content}</p>
+          {comments.map((comment) => (
+            <div key={comment.id} className="mb-2 p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center mb-1">
+                <img
+                  src={`https://api.dicebear.com/6.x/initials/svg?seed=${comment.username}`}
+                  alt={comment.username}
+                  className="w-6 h-6 rounded-full mr-2"
+                />
+                <p className="font-bold text-sm">{comment.username}</p>
+                <span className="text-gray-500 text-xs ml-2">
+                  {new Date(comment.created_at).toLocaleString()}
+                </span>
+              </div>
+              <p className="text-sm">{comment.content}</p>
             </div>
           ))}
           <div className="flex mt-2">
@@ -180,7 +283,7 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
               className="flex-grow p-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
-              
+              onClick={handleComment}
               className="px-4 py-2 bg-blue-500 text-white rounded-r-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               Comment
@@ -199,10 +302,15 @@ interface FeedProps {
 
 const Feed: React.FC<FeedProps> = ({ currentUser, authToken }) => {
   const [tweets, setTweets] = useState<Tweet[]>([])
-  
+
   const fetchTweets = async () => {
-    const fetchedTweets = await getPosts(authToken)
-    setTweets(fetchedTweets)
+    try {
+      const fetchedTweets = await getPosts(authToken)
+      setTweets(fetchedTweets || [])
+    } catch (error) {
+      console.error('Error fetching tweets:', error)
+      setTweets([])
+    }
   }
 
   useEffect(() => {
