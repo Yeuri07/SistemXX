@@ -2,9 +2,10 @@ import React, { useState } from 'react'
 import { Send } from 'lucide-react'
 
 const initialConversations = [
-  { id: 1, user: 'John Doe', lastMessage: 'Hey, how are you?', time: '10:30 AM' },
-  { id: 2, user: 'Jane Smith', lastMessage: 'Did you see the latest tweet?', time: 'Yesterday' },
-  { id: 3, user: 'Bob Johnson', lastMessage: 'Let\'s catch up soon!', time: '2 days ago' },
+  { id: 1, user: 'alvin', lastMessage: 'Hey, how are you?', time: '10:30 AM' },
+  { id: 2, user: 'Marias', lastMessage: 'Did you see the latest tweet?', time: 'Yesterday' },
+  { id: 3, user: 'Mr.Lami', lastMessage: 'Let\'s catch up soon!', time: '2 days ago' },
+  { id: 4, user: 'Pedro', lastMessage: 'Let\'s Que tal mi brother!', time: '19 days ago' },
 ]
 
 const Messages = ({ currentUser }) => {
