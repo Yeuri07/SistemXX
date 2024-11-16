@@ -492,7 +492,7 @@ app.get('/users/profile/:username', authenticateToken, async (req, res) => {
   
   try {
     const [user] = await db.promise().query(
-      `SELECT u.id, u.username, u.email,profile_picture,
+      `SELECT u.id, u.username, u.email,profile_picture,status,
       (SELECT COUNT(*) FROM followers WHERE followed_id = u.id) as followers_count,
       (SELECT COUNT(*) FROM followers WHERE follower_id = u.id) as following_count
       FROM users u
