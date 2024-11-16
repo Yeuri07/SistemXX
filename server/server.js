@@ -485,6 +485,53 @@ app.get('/posts/:id/comments', authenticateToken, async (req, res) => {
   }
 });
 
+//Get info of users
+
+app.get('/users/profile/:username', authenticateToken, async (req, res) => {
+  const { username } = req.params;
+  
+  try {
+    const [user] = await db.promise().query(
+      `SELECT u.id, u.username, u.email,profile_picture,
+      (SELECT COUNT(*) FROM followers WHERE followed_id = u.id) as followers_count,
+      (SELECT COUNT(*) FROM followers WHERE follower_id = u.id) as following_count
+      FROM users u
+      WHERE u.username = ?`,
+      [username]
+    );
+
+    if (user.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user[0]);
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ message: 'Error fetching user profile' });
+  }
+});
+
+// Get user posts by username
+app.get('/users/:username/posts', authenticateToken, async (req, res) => {
+  const { username } = req.params;
+  
+  try {
+    const [posts] = await db.promise().query(
+      `SELECT p.*, u.username 
+       FROM posts p 
+       JOIN users u ON p.user_id = u.id 
+       WHERE u.username = ? 
+       ORDER BY p.created_at DESC`,
+      [username]
+    );
+
+    res.json(posts);
+  } catch (error) {
+    console.error('Error fetching user posts:', error);
+    res.status(500).json({ message: 'Error fetching user posts' });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
