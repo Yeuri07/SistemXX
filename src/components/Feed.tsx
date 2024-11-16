@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { Heart, MessageCircle, Repeat2, Share, Image, Film } from 'lucide-react'
 import { createPost, getPosts, likePost, unlikePost, getPostLikes, createComment, getComments } from '../services/api'
 
@@ -196,10 +197,10 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
   const handleComment = async () => {
     if (newComment.trim()) {
       try {
-        const success = await createComment(tweet.id, newComment, authToken)
-        if (success) {
+        const comment = await createComment(tweet.id, newComment, authToken)
+        if (comment) {
           setNewComment('')
-          fetchComments()
+          setComments([comment, ...comments])
         }
       } catch (error) {
         console.error('Error creating comment:', error)
@@ -210,16 +211,19 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
   return (
     <div className="border-b border-gray-200 p-4">
       <div className="flex items-center mb-2">
-        <img
-          src={`https://api.dicebear.com/6.x/initials/svg?seed=${tweet.username}`}
-          alt={tweet.username}
-          className="w-10 h-10 rounded-full mr-3"
-        />
-        <div>
-          <h3 className="font-bold">{tweet.username}</h3>
-          <p className="text-gray-500 text-sm">{new Date(tweet.created_at).toLocaleString()}</p>
-        </div>
+        <Link to={`/profile/${tweet.username}`} className="flex items-center">
+          <img
+             src={profileData.profile_picture ? `http://localhost:5000${profileData.profile_picture}` : `https://api.dicebear.com/6.x/initials/svg?seed=${profileData.username}`}
+            alt={tweet.username}
+            className="w-10 h-10 rounded-full mr-3"
+          />
+          <div>
+            <h3 className="font-bold hover:underline">{tweet.username}</h3>
+            <p className="text-gray-500 text-sm">{new Date(tweet.created_at).toLocaleString()}</p>
+          </div>
+        </Link>
       </div>
+      
       <p className="mb-2">{tweet.content}</p>
       
       {tweet.media_url && (
@@ -256,21 +260,22 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
           <Share className="w-5 h-5 mr-1" />
         </button>
       </div>
+
       {showComments && (
         <div className="mt-4">
           {comments.map((comment) => (
             <div key={comment.id} className="mb-2 p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center mb-1">
+              <Link to={`/profile/${comment.username}`} className="flex items-center mb-1">
                 <img
                   src={`https://api.dicebear.com/6.x/initials/svg?seed=${comment.username}`}
                   alt={comment.username}
                   className="w-6 h-6 rounded-full mr-2"
                 />
-                <p className="font-bold text-sm">{comment.username}</p>
+                <p className="font-bold text-sm hover:underline">{comment.username}</p>
                 <span className="text-gray-500 text-xs ml-2">
                   {new Date(comment.created_at).toLocaleString()}
                 </span>
-              </div>
+              </Link>
               <p className="text-sm">{comment.content}</p>
             </div>
           ))}
