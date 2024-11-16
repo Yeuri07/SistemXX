@@ -167,6 +167,7 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
   const fetchComments = async () => {
     try {
       const fetchedComments = await getComments(tweet.id, authToken)
+     
       setComments(fetchedComments || [])
     } catch (error) {
       console.error('Error fetching comments:', error)
@@ -200,7 +201,9 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
         const comment = await createComment(tweet.id, newComment, authToken)
         if (comment) {
           setNewComment('')
+          
           setComments([comment, ...comments])
+         
         }
       } catch (error) {
         console.error('Error creating comment:', error)
@@ -213,7 +216,7 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
       <div className="flex items-center mb-2">
         <Link to={`/profile/${tweet.username}`} className="flex items-center">
           <img
-             src={profileData.profile_picture ? `http://localhost:5000${profileData.profile_picture}` : `https://api.dicebear.com/6.x/initials/svg?seed=${profileData.username}`}
+              src={`https://api.dicebear.com/6.x/initials/svg?seed=${tweet.username}`}
             alt={tweet.username}
             className="w-10 h-10 rounded-full mr-3"
           />
@@ -261,7 +264,7 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
         </button>
       </div>
 
-      {showComments && (
+      {showComments  &&  (
         <div className="mt-4">
           {comments.map((comment) => (
             <div key={comment.id} className="mb-2 p-3 bg-gray-50 rounded-lg">
@@ -282,7 +285,7 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
           <div className="flex mt-2">
             <input
               type="text"
-              value={newComment}
+              value={newComment }
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Write a comment..."
               className="flex-grow p-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -296,6 +299,7 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
           </div>
         </div>
       )}
+      
     </div>
   )
 }
