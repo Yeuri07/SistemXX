@@ -21,7 +21,6 @@ interface Post {
 }
 
 
-
 export async function registerUser(username: string, password: string, email: string): Promise<AuthResponse | null> {
   try {
     const response = await fetch(`${API_URL}/register`, {
@@ -185,6 +184,46 @@ export async function getComments(postId: number, token: string): Promise<any[]>
     throw new Error(data.message);
   } catch (error) {
     console.error('Error getting comments:', error);
+    return [];
+  }
+}
+
+export async function getUserProfile(username: string, token: string): Promise<User | null> {
+  try {
+    const response = await fetch(`${API_URL}/users/profile/${username}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch user profile');
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    return null;
+  }
+}
+
+export async function getUserPosts(username: string, token: string): Promise<any[]> {
+  try {
+    const response = await fetch(`${API_URL}/users/${username}/posts`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch user posts');
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching user posts:', error);
     return [];
   }
 }
