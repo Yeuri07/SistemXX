@@ -8,12 +8,31 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 require('dotenv').config();
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    credentials: true
+  }
+});
+
+const db = mysql.createConnection({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
+
+
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -67,12 +86,7 @@ const profileUpload = multer({
   }
 }).single('profile_picture');
 
-const db = mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
+
 
 // db.connect((err) => {
 //   if (err) {
@@ -531,6 +545,205 @@ app.get('/users/:username/posts', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Error fetching user posts' });
   }
 });
+
+//--------------
+// Socket.io authentication middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) {
+    return next(new Error('Authentication error'));
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return next(new Error('Authentication error'));
+    socket.userId = decoded.id;
+    socket.join(decoded.id.toString());
+    next();
+  });
+});
+
+// Socket connection handling
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.userId);
+
+  socket.on('markNotificationAsRead', async (notificationId) => {
+    try {
+      await db.promise().query(
+        'UPDATE notifications SET is_read = true WHERE id = ? AND user_id = ?',
+        [notificationId, socket.userId]
+      );
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.userId);
+  });
+});
+
+// Create notification function
+async function createNotification(userId, type, actorId, targetId) {
+  try {
+    const [result] = await db.promise().query(
+      'INSERT INTO notifications (user_id, type, actor_id, target_id, is_read) VALUES (?, ?, ?, ?, false)',
+      [userId, type, actorId, targetId]
+    );
+
+    const [notifications] = await db.promise().query(
+      `SELECT n.*, u.username as actor_username 
+       FROM notifications n 
+       JOIN users u ON n.actor_id = u.id 
+       WHERE n.id = ?`,
+      [result.insertId]
+    );
+
+    if (notifications[0]) {
+      io.to(userId.toString()).emit('notification', notifications[0]);
+    }
+  } catch (error) {
+    console.error('Error creating notification:', error);
+  }
+}
+
+// Follow user endpoint
+app.post('/users/:userId/follow', authenticateToken, async (req, res) => {
+  const followerId = req.user.id;
+  const followedId = parseInt(req.params.userId);
+
+  try {
+    await db.promise().query(
+      'INSERT INTO followers (follower_id, followed_id) VALUES (?, ?)',
+      [followerId, followedId]
+    );
+
+    await createNotification(followedId, 'follow', followerId, null);
+
+    res.json({ message: 'Successfully followed user' });
+  } catch (error) {
+    console.error('Error following user:', error);
+    res.status(500).json({ message: 'Error following user' });
+  }
+});
+
+// Like post endpoint
+app.post('/posts/:postId/like', authenticateToken, async (req, res) => {
+  const { postId } = req.params;
+  const userId = req.user.id;
+
+  try {
+    // Add like
+    await db.promise().query(
+      'INSERT INTO likes (user_id, post_id) VALUES (?, ?)',
+      [userId, postId]
+    );
+
+    // Get post owner
+    const [posts] = await db.promise().query(
+      'SELECT user_id FROM posts WHERE id = ?',
+      [postId]
+    );
+
+    if (posts.length > 0) {
+      // Create notification for post owner
+      await createNotification(posts[0].user_id, 'like', userId, postId);
+    }
+
+    // Get updated likes count
+    const [result] = await db.promise().query(
+      'SELECT COUNT(*) as count FROM likes WHERE post_id = ?',
+      [postId]
+    );
+
+    // Emit like event to all connected clients
+    io.emit('postLiked', { postId, likesCount: result[0].count });
+
+    res.json({ message: 'Post liked successfully' });
+  } catch (error) {
+    console.error('Error liking post:', error);
+    res.status(500).json({ message: 'Error liking post' });
+  }
+});
+
+// Retweet post endpoint
+app.post('/posts/:postId/retweet', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const postId = parseInt(req.params.postId);
+
+  try {
+    await db.promise().query(
+      'INSERT INTO retweets (user_id, post_id) VALUES (?, ?)',
+      [userId, postId]
+    );
+
+    const [post] = await db.promise().query(
+      'SELECT user_id FROM posts WHERE id = ?',
+      [postId]
+    );
+
+    if (post[0] && post[0].user_id !== userId) {
+      await createNotification(post[0].user_id, 'retweet', userId, postId);
+    }
+
+    res.json({ message: 'Successfully retweeted post' });
+  } catch (error) {
+    console.error('Error retweeting post:', error);
+    res.status(500).json({ message: 'Error retweeting post' });
+  }
+});
+
+// Get notifications endpoint
+app.get('/notifications', authenticateToken, async (req, res) => {
+  try {
+    const [notifications] = await db.promise().query(
+      `SELECT n.*, u.username as actor_username 
+       FROM notifications n 
+       JOIN users u ON n.actor_id = u.id 
+       WHERE n.user_id = ? 
+       ORDER BY n.created_at DESC`,
+      [req.user.id]
+    );
+    res.json(notifications);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ message: 'Error fetching notifications' });
+  }
+});
+
+// Search users endpoint
+app.get('/users/search', authenticateToken, async (req, res) => {
+  const { q } = req.query;
+  const userId = req.user.userId;
+
+  if (!q || q.trim() === '') {
+    return res.status(400).json({ message: 'Search query cannot be empty' });
+  }
+
+  console.log('Buscando usuarios con q:', q);
+  console.log('ID del usuario autenticado:', userId);
+
+  try {
+    const [users] = await db.promise().query(
+      `SELECT u.id, u.username,
+              EXISTS(SELECT 1 FROM followers WHERE follower_id = ? AND followed_id = u.id) as isFollowing
+       FROM users u
+       WHERE u.username LIKE ? AND u.id != ?
+       LIMIT 10`,
+      [userId, `%${q}%`, userId]
+    );
+
+    console.log('Usuarios encontrados:', users);
+
+    res.json(users);
+  } catch (error) {
+    console.error('Error searching users:', error);
+    res.status(500).json({ message: 'Error searching users' });
+  }
+});
+
+
+
+//--------------
 
 // Error handling middleware
 app.use((err, req, res, next) => {
