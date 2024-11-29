@@ -87,16 +87,36 @@ export async function createPost(content: string, media?: File, token: string): 
   }
 }
 
-export async function getPosts(token: string): Promise<Post[]> {
+// export async function getPosts(token: string): Promise<Post[]> {
+//   try {
+//     const response = await fetch(`${API_URL}/posts`, {
+//       headers: {
+//         'Authorization': `Bearer ${token}`,
+//       },
+//     });
+//     if (!response.ok) {
+//       throw new Error(`HTTP error! status: ${response.status}`);
+//     }
+//     const data = await response.json();
+//     return data;
+//   } catch (error) {
+//     console.error('Error fetching posts:', error);
+//     return [];
+//   }
+// }
+
+export async function getPosts(token: string, page: number = 1, limit: number = 10): Promise<any[]> {
   try {
-    const response = await fetch(`${API_URL}/posts`, {
+    const response = await fetch(`${API_URL}/posts?page=${page}&limit=${limit}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
+    
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error('Failed to fetch posts');
     }
+    
     const data = await response.json();
     return data;
   } catch (error) {
@@ -163,7 +183,10 @@ export async function createComment(postId: number, content: string, token: stri
       },
       body: JSON.stringify({ content }),
     });
-    return response.ok;
+    const date = await response.json()
+ 
+    return date;
+    
   } catch (error) {
     console.error('Error creating comment:', error);
     return false;
@@ -178,8 +201,9 @@ export async function getComments(postId: number, token: string): Promise<any[]>
       },
     });
     const data = await response.json();
+   
     if (response.ok) {
-      return data.comments;
+      return data;
     }
     throw new Error(data.message);
   } catch (error) {
