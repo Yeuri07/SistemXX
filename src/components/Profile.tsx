@@ -185,6 +185,7 @@ const Profile: React.FC<ProfileProps> = ({ user: currentUser, authToken }) => {
   const [status, setStatus] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   
+  
   const isOwnProfile = !username || username === currentUser.username
 
   useEffect(() => {

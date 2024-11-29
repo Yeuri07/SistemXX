@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect,useRef,useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Heart, MessageCircle, Repeat2, Share, Image, Film } from 'lucide-react'
 import { createPost, getPosts, likePost, unlikePost, getPostLikes, createComment, getComments } from '../services/api'
+import  UserSearch  from './UserSearch'
+import { socket } from '../services/socket';
 
 interface Tweet {
   id: number;
@@ -169,6 +171,7 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
       const fetchedComments = await getComments(tweet.id, authToken)
      
       setComments(fetchedComments || [])
+       
     } catch (error) {
       console.error('Error fetching comments:', error)
       setComments([])
@@ -195,22 +198,27 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
     }
   }
 
+
+
   const handleComment = async () => {
     if (newComment.trim()) {
+
       try {
         const comment = await createComment(tweet.id, newComment, authToken)
+
         if (comment) {
+
           setNewComment('')
           
           setComments([comment, ...comments])
-         
+       
         }
       } catch (error) {
         console.error('Error creating comment:', error)
       }
     }
   }
-
+  
   return (
     <div className="border-b border-gray-200 p-4">
       <div className="flex items-center mb-2">
@@ -226,7 +234,6 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
           </div>
         </Link>
       </div>
-      
       <p className="mb-2">{tweet.content}</p>
       
       {tweet.media_url && (
@@ -264,28 +271,13 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
         </button>
       </div>
 
-      {showComments  &&  (
+      {showComments &&  (
+        
         <div className="mt-4">
-          {comments.map((comment) => (
-            <div key={comment.id} className="mb-2 p-3 bg-gray-50 rounded-lg">
-              <Link to={`/profile/${comment.username}`} className="flex items-center mb-1">
-                <img
-                  src={`https://api.dicebear.com/6.x/initials/svg?seed=${comment.username}`}
-                  alt={comment.username}
-                  className="w-6 h-6 rounded-full mr-2"
-                />
-                <p className="font-bold text-sm hover:underline">{comment.username}</p>
-                <span className="text-gray-500 text-xs ml-2">
-                  {new Date(comment.created_at).toLocaleString()}
-                </span>
-              </Link>
-              <p className="text-sm">{comment.content}</p>
-            </div>
-          ))}
           <div className="flex mt-2">
             <input
               type="text"
-              value={newComment }
+              value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Write a comment..."
               className="flex-grow p-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -296,7 +288,32 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
             >
               Comment
             </button>
+            
           </div>
+        
+          {
+          comments.map((comment) =>{
+           
+            return (
+            
+              <div key={comment.id} className="mb-2 p-3 bg-gray-50 rounded-lg">
+                <Link to={`/profile/${comment.username}`} className="flex items-center mb-1">
+                  <img
+                    src={`https://api.dicebear.com/6.x/initials/svg?seed=${comment.username}`}
+                    alt={comment.username}
+                    className="w-6 h-6 rounded-full mr-2"
+                  />
+                  <p className="font-bold text-sm hover:underline">{comment.username}</p>
+                  <span className="text-gray-500 text-xs ml-2">
+                  {new Date(comment.created_at).toLocaleString()}
+                  </span>
+                </Link>
+                <p className="text-sm">{comment.content}</p>
+              </div>
+            )
+          } )
+            
+          }
         </div>
       )}
       
@@ -311,31 +328,77 @@ interface FeedProps {
 
 const Feed: React.FC<FeedProps> = ({ currentUser, authToken }) => {
   const [tweets, setTweets] = useState<Tweet[]>([])
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+  
+  const observer = useRef<IntersectionObserver>()
+  const lastTweetElementRef = useCallback(node => {
+    if (loading) return
+    
+    if (observer.current) observer.current.disconnect()
+    
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        setPage(prevPage => prevPage + 1)
+      }
+    })
+    
+    if (node) observer.current.observe(node)
+  }, [loading, hasMore])
 
-  const fetchTweets = async () => {
+  const fetchTweets = async (pageNumber: number) => {
     try {
-      const fetchedTweets = await getPosts(authToken)
-      setTweets(fetchedTweets || [])
+      setLoading(true)
+      const fetchedTweets = await getPosts(authToken, pageNumber)
+      if (fetchedTweets.length === 0) {
+        setHasMore(false)
+      } else {
+        setTweets(prev => [...prev, ...fetchedTweets])
+      }
     } catch (error) {
       console.error('Error fetching tweets:', error)
-      setTweets([])
+    } finally {
+      setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchTweets()
-  }, [authToken])
+    fetchTweets(page)
+  }, [page, authToken])
 
-  const handleNewTweet = () => {
-    fetchTweets()
+  const handleNewTweet = async () => {
+    setPage(1)
+    setTweets([])
+    setHasMore(true)
+    await fetchTweets(1)
   }
 
   return (
-    <div>
+    <div className="h-screen overflow-y-auto">
+      
       <TweetForm onTweet={handleNewTweet} currentUser={currentUser} authToken={authToken} />
-      {tweets.map((tweet) => (
-        <Tweet key={tweet.id} tweet={tweet} currentUser={currentUser} authToken={authToken} />
-      ))}
+      {tweets.map((tweet, index) => {
+        if (tweets.length === index + 1) {
+          return (
+            <div ref={lastTweetElementRef} key={tweet.id}>
+              <Tweet tweet={tweet} currentUser={currentUser} authToken={authToken} />
+            </div>
+          )
+        } else {
+          return (
+            <Tweet key={tweet.id} tweet={tweet} currentUser={currentUser} authToken={authToken} />
+          )
+        }
+      })}
+      {loading && (
+        <div className="flex justify-center p-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        </div>
+      )}
+      {!hasMore && tweets.length > 0 && (
+        <p className="text-center text-gray-500 p-4">No more tweets to load</p>
+      )}
     </div>
   )
 }

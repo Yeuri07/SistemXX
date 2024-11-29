@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Home, Bell, Mail, User, LogOut } from 'lucide-react'
+import logo from '../../public/Logoxx.png'
 
 interface SidebarProps {
   currentUser: any;
@@ -19,16 +20,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
 
   return (
     <div className="w-64 p-4">
-      <div className="flex items-center mb-8">
+      <div className="flex items-center mb-2">
         <img
-          src={currentUser.profile_picture ? `http://localhost:5000${currentUser.profile_picture}` : `https://api.dicebear.com/6.x/initials/svg?seed=${currentUser.username}`}
+          src={logo}
           alt={currentUser.username}
-          className="w-10 h-10 rounded-full mr-3"
+          className="w-24 h-24 rounded-full mr-2"
         />
-        <div>
-          <h2 className="font-bold">{currentUser.username}</h2>
-          <p className="text-sm text-gray-500">{currentUser.status || 'No status'}</p>
-        </div>
       </div>
       <nav>
         <ul>

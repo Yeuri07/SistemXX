@@ -1,47 +1,78 @@
-import React from 'react'
-import { Heart, Repeat2, User } from 'lucide-react'
+import React, { useState, useEffect } from 'react';
+import { Bell } from 'lucide-react';
+import NotificationItem from './NotificationItem';
+import { Notification, subscribeToNotifications, markNotificationAsRead } from '../services/notifications';
 
-const notifications = [
-  { id: 1, type: 'like', user: 'John Doe', content: 'liked your tweet', time: '2h ago' },
-  { id: 2, type: 'retweet', user: 'Jane Smith', content: 'retweeted your tweet', time: '4h ago' },
-  { id: 3, type: 'follow', user: 'Bob Johnson', content: 'followed you', time: '1d ago' },
-]
+const Notifications: React.FC = () => {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  
 
-const NotificationItem = ({ notification }) => {
-  const getIcon = () => {
-    switch (notification.type) {
-      case 'like':
-        return <Heart className="w-5 h-5 text-red-500" />
-      case 'retweet':
-        return <Repeat2 className="w-5 h-5 text-green-500" />
-      case 'follow':
-        return <User className="w-5 h-5 text-blue-500" />
-      default:
-        return null
-    }
-  }
+  useEffect(() => {
+    const unsubscribe = subscribeToNotifications((notification) => {
+      setNotifications(prev => [notification, ...prev]);
+    });
+
+    // Fetch existing notifications
+    fetch('http://localhost:5000/notifications', {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      }
+    })
+      .then(res => res.json())
+      .then(data => setNotifications(data))
+      .catch(err => console.error('Error fetching notifications:', err));
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const handleMarkAsRead = (notificationId: number) => {
+    markNotificationAsRead(notificationId);
+    setNotifications(prev =>
+      prev.map(notification =>
+        notification.id === notificationId
+          ? { ...notification, read: true }
+          : notification
+      )
+    );
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="flex items-start p-4 hover:bg-gray-50 border-b border-gray-200">
-      <div className="mr-3">{getIcon()}</div>
-      <div>
-        <p>
-          <span className="font-bold">{notification.user}</span> {notification.content}
-        </p>
-        <p className="text-gray-500 text-sm">{notification.time}</p>
+    <div className="max-w-2xl mx-auto">
+      <div className="sticky top-0 bg-white z-10 p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">Notifications</h1>
+          {unreadCount > 0 && (
+            <div className="flex items-center">
+              <Bell className="w-5 h-5 text-blue-500" />
+              <span className="ml-2 bg-blue-500 text-white px-2 py-1 rounded-full text-sm">
+                {unreadCount}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="divide-y divide-gray-200">
+        {notifications.length > 0 ? (
+          notifications.map((notification) => (
+            <NotificationItem
+              key={notification.id}
+              notification={notification}
+              onMarkAsRead={handleMarkAsRead}
+            />
+          ))
+        ) : (
+          <div className="p-8 text-center text-gray-500">
+            No notifications yet
+          </div>
+        )}
       </div>
     </div>
-  )
-}
+  );
+};
 
-const Notifications = () => {
-  return (
-    <div>
-      {notifications.map((notification) => (
-        <NotificationItem key={notification.id} notification={notification} />
-      ))}
-    </div>
-  )
-}
-
-export default Notifications
+export default Notifications;
