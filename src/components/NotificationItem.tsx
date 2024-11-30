@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { Heart, Repeat2, UserPlus } from 'lucide-react';
+import { Heart, MessageCircle, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Notification } from '../services/notifications';
 
@@ -14,8 +14,8 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onMar
     switch (notification.type) {
       case 'like':
         return <Heart className="w-5 h-5 text-red-500" />;
-      case 'retweet':
-        return <Repeat2 className="w-5 h-5 text-green-500" />;
+      case 'comment':
+        return <MessageCircle className="w-5 h-5 text-green-500" />;
       case 'follow':
         return <UserPlus className="w-5 h-5 text-blue-500" />;
       default:
@@ -27,8 +27,8 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onMar
     switch (notification.type) {
       case 'like':
         return 'liked your post';
-      case 'retweet':
-        return 'retweeted your post';
+      case 'comment':
+        return 'commented your post';
       case 'follow':
         return 'started following you';
       default:
