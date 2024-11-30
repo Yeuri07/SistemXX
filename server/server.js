@@ -9,7 +9,10 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 require('dotenv').config();
 const http = require('http');
+
 const { Server } = require('socket.io');
+const { createServer } = require('node:http');
+
 
 const app = express();
 
@@ -17,8 +20,10 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-const server = http.createServer(app);
+const server = createServer(app);
+
 const io = new Server(server, {
+ 
   cors: {
     origin: "http://localhost:5173",
     credentials: true
@@ -34,7 +39,7 @@ const db = mysql.createConnection({
 
 
 
-// Create uploads directory if it doesn't exist
+//Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
 const profileUploadsDir = path.join(uploadsDir, 'profiles');
 
@@ -87,64 +92,6 @@ const profileUpload = multer({
 }).single('profile_picture');
 
 
-
-// db.connect((err) => {
-//   if (err) {
-//     console.error('Error connecting to the database:', err);
-//     return;
-//   }
-//   console.log('Connected to the database.');
-  
-//   // Create tables if they don't exist
-//   const createTables = `
-//     CREATE TABLE IF NOT EXISTS users (
-//       id INT PRIMARY KEY AUTO_INCREMENT,
-//       username VARCHAR(50) UNIQUE NOT NULL,
-//       email VARCHAR(100) UNIQUE NOT NULL,
-//       password VARCHAR(255) NOT NULL,
-//       profile_picture VARCHAR(255),
-//       status TEXT,
-//       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-//     );
-
-//     CREATE TABLE IF NOT EXISTS posts (
-//       id INT PRIMARY KEY AUTO_INCREMENT,
-//       user_id INT NOT NULL,
-//       content TEXT NOT NULL,
-//       media_url VARCHAR(255),
-//       media_type ENUM('image', 'video'),
-//       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-//       FOREIGN KEY (user_id) REFERENCES users(id)
-//     );
-
-//     CREATE TABLE IF NOT EXISTS likes (
-//       user_id INT,
-//       post_id INT,
-//       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-//       PRIMARY KEY (user_id, post_id),
-//       FOREIGN KEY (user_id) REFERENCES users(id),
-//       FOREIGN KEY (post_id) REFERENCES posts(id)
-//     );
-
-//     CREATE TABLE IF NOT EXISTS comments (
-//       id INT PRIMARY KEY AUTO_INCREMENT,
-//       post_id INT,
-//       user_id INT,
-//       content TEXT,
-//       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-//       FOREIGN KEY (post_id) REFERENCES posts(id),
-//       FOREIGN KEY (user_id) REFERENCES users(id)
-//     );
-//   `;
-
-//   db.query(createTables, (err) => {
-//     if (err) {
-//       console.error('Error creating tables:', err);
-//       return;
-//     }
-//     console.log('Database tables created/verified successfully');
-//   });
-// });
 
 // Middleware to verify JWT token
 const authenticateToken = (req, res, next) => {
@@ -236,7 +183,7 @@ app.post('/users/status', authenticateToken, async (req, res) => {
 app.get('/users/profile', authenticateToken, async (req, res) => {
   try {
     const [user] = await db.promise().query(
-      'SELECT id, username, email, profile_picture, status, created_at FROM users WHERE id = ?',
+      'SELECT id, username, email, profile_picture, status FROM users WHERE id = ?',
       [req.user.userId]
     );
 
@@ -250,6 +197,7 @@ app.get('/users/profile', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Error fetching user profile' });
   }
 });
+
 
 // Existing routes...
 // Register endpoint
@@ -414,12 +362,25 @@ app.get('/posts', authenticateToken, async (req, res) => {
 // Like a post
 app.post('/posts/:id/like', authenticateToken, async (req, res) => {
   const postId = req.params.id;
+  const [rows] = await db.promise().query('SELECT user_id FROM posts WHERE id = ?', [postId]);
+  const postOwnerId = rows.length > 0 ? rows[0].user_id : null;
+  
   try {
     await db.promise().query(
       'INSERT INTO likes (user_id, post_id) VALUES (?, ?)',
       [req.user.userId, postId]
     );
+
+    await createNotification(postOwnerId, 'like', req.user.userId, null);
     res.json({ message: 'Post liked successfully' });
+      // Get updated likes count
+     const [result] = await db.promise().query(
+       'SELECT COUNT(*) as count FROM likes WHERE post_id = ?',
+       [postId]
+     );
+      // Emit like event to all connected clients
+    io.emit('postLiked', { postId, likesCount: result[0].count });
+     console.log(result)
   } catch (error) {
     console.error('Error liking post:', error);
     res.status(500).json({ message: 'Error liking post' });
@@ -444,17 +405,35 @@ app.delete('/posts/:id/like', authenticateToken, async (req, res) => {
 // Get post likes count
 app.get('/posts/:id/likes', authenticateToken, async (req, res) => {
   const postId = req.params.id;
+  const userId = req.user.userId; // Obtén el user_id del token (deberías tenerlo disponible si estás usando algún tipo de autenticación JWT)
+
   try {
+    // Consulta para obtener el conteo de likes del post
     const [rows] = await db.promise().query(
       'SELECT COUNT(*) as count FROM likes WHERE post_id = ?',
       [postId]
     );
-    res.json({ likes: rows[0].count });
+
+    // Consulta para verificar si el usuario autenticado ha dado like
+    const [userLikeRows] = await db.promise().query(
+      'SELECT 1 FROM likes WHERE post_id = ? AND user_id = ? LIMIT 1',
+      [postId, userId]
+    );
+
+    // Si el usuario ha dado like, userLikeRows tendrá alguna fila, de lo contrario estará vacío
+    const isLikedByUser = userLikeRows.length > 0;
+
+    // Enviar la respuesta con el conteo de likes y si el usuario ha dado like
+    res.json({
+      likes: rows[0].count,       // El número de likes
+      isLikedByUser: isLikedByUser // Si el usuario ha dado like
+    });
   } catch (error) {
     console.error('Error getting post likes:', error);
     res.status(500).json({ message: 'Error getting post likes' });
   }
 });
+
 
 // Add comment to a post
 app.post('/posts/:id/comments', authenticateToken, async (req, res) => {
@@ -465,6 +444,7 @@ app.post('/posts/:id/comments', authenticateToken, async (req, res) => {
       'INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)',
       [postId, req.user.userId, content]
     );
+  
 
     const [comment] = await db.promise().query(
       `SELECT c.*, u.username, u.profile_picture 
@@ -473,6 +453,11 @@ app.post('/posts/:id/comments', authenticateToken, async (req, res) => {
        WHERE c.id = ?`,
       [result.insertId]
     );
+
+    //   // Create a notification for the post owner
+    // if (postOwnerId !== req.user.userId) { // Avoid sending a notification to the commenter themselves
+    //   await createNotification(postId, 'comment', req.user.userId, postId);
+    // }
 
     res.status(201).json(comment[0]);
   } catch (error) {
@@ -525,6 +510,29 @@ app.get('/users/profile/:username', authenticateToken, async (req, res) => {
   }
 });
 
+// Verificar si el usuario actual sigue a otro usuario
+app.get('/users/:id/is-following', authenticateToken, async (req, res) => {
+  const targetUserId = req.params.id; // Usuario objetivo (el ID del perfil consultado)
+  const currentUserId = req.user.userId; // Usuario actual (obtenido de authenticateToken)
+
+  try {
+    // Consulta si hay una relación en la tabla followers
+    const [rows] = await db.promise().query(
+      'SELECT 1 FROM followers WHERE follower_id = ? AND followed_id = ?',
+      [currentUserId, targetUserId]
+    );
+
+    // Si hay una fila, el usuario está siguiendo al objetivo
+    const isFollowing = rows.length > 0;
+
+    res.json({ isFollowing });
+  } catch (error) {
+    console.error('Error checking follow status:', error);
+    res.status(500).json({ message: 'Error checking follow status' });
+  }
+});
+
+
 // Get user posts by username
 app.get('/users/:username/posts', authenticateToken, async (req, res) => {
   const { username } = req.params;
@@ -556,8 +564,8 @@ io.use((socket, next) => {
 
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) return next(new Error('Authentication error'));
-    socket.userId = decoded.id;
-    socket.join(decoded.id.toString());
+    socket.userId = decoded.userId;
+    socket.join(decoded.userId.toString());
     next();
   });
 });
@@ -597,7 +605,6 @@ async function createNotification(userId, type, actorId, targetId) {
        WHERE n.id = ?`,
       [result.insertId]
     );
-
     if (notifications[0]) {
       io.to(userId.toString()).emit('notification', notifications[0]);
     }
@@ -608,7 +615,7 @@ async function createNotification(userId, type, actorId, targetId) {
 
 // Follow user endpoint
 app.post('/users/:userId/follow', authenticateToken, async (req, res) => {
-  const followerId = req.user.id;
+  const followerId = req.user.userId;
   const followedId = parseInt(req.params.userId);
 
   try {
@@ -616,7 +623,7 @@ app.post('/users/:userId/follow', authenticateToken, async (req, res) => {
       'INSERT INTO followers (follower_id, followed_id) VALUES (?, ?)',
       [followerId, followedId]
     );
-
+    
     await createNotification(followedId, 'follow', followerId, null);
 
     res.json({ message: 'Successfully followed user' });
@@ -626,71 +633,97 @@ app.post('/users/:userId/follow', authenticateToken, async (req, res) => {
   }
 });
 
-// Like post endpoint
-app.post('/posts/:postId/like', authenticateToken, async (req, res) => {
-  const { postId } = req.params;
-  const userId = req.user.id;
+// Unfollow user endpoint
+app.delete('/users/:userId/unfollow', authenticateToken, async (req, res) => {
+  const unfollowerId = req.user.userId;  // El ID del usuario que está dejando de seguir
+  const followedId = parseInt(req.params.userId);  // El ID del usuario al que se le deja de seguir
 
   try {
-    // Add like
+    // Elimina el registro de seguimiento
     await db.promise().query(
-      'INSERT INTO likes (user_id, post_id) VALUES (?, ?)',
-      [userId, postId]
+      'DELETE FROM followers WHERE follower_id = ? AND followed_id = ?',
+      [unfollowerId, followedId]
     );
 
-    // Get post owner
-    const [posts] = await db.promise().query(
-      'SELECT user_id FROM posts WHERE id = ?',
-      [postId]
-    );
 
-    if (posts.length > 0) {
-      // Create notification for post owner
-      await createNotification(posts[0].user_id, 'like', userId, postId);
-    }
-
-    // Get updated likes count
-    const [result] = await db.promise().query(
-      'SELECT COUNT(*) as count FROM likes WHERE post_id = ?',
-      [postId]
-    );
-
-    // Emit like event to all connected clients
-    io.emit('postLiked', { postId, likesCount: result[0].count });
-
-    res.json({ message: 'Post liked successfully' });
+    res.json({ message: 'Successfully unfollowed user' });
   } catch (error) {
-    console.error('Error liking post:', error);
-    res.status(500).json({ message: 'Error liking post' });
+    console.error('Error unfollowing user:', error);
+    res.status(500).json({ message: 'Error unfollowing user' });
   }
 });
 
-// Retweet post endpoint
-app.post('/posts/:postId/retweet', authenticateToken, async (req, res) => {
-  const userId = req.user.id;
-  const postId = parseInt(req.params.postId);
 
-  try {
-    await db.promise().query(
-      'INSERT INTO retweets (user_id, post_id) VALUES (?, ?)',
-      [userId, postId]
-    );
+// // Like post endpoint
+// app.post('/posts/:postId/like', authenticateToken, async (req, res) => {
+//   const { postId } = req.params;
+//   const userId = req.user.id;
+//   try {
+   
+//     // Add like
+//     await db.promise().query(
+//       'INSERT INTO likes (user_id, post_id) VALUES (?, ?)',
+//       [userId, postId]
+//     );
 
-    const [post] = await db.promise().query(
-      'SELECT user_id FROM posts WHERE id = ?',
-      [postId]
-    );
+//     await createNotification(userId, 'like', userId, null);
+       
+//     // Get post owner
+//     const [posts] = await db.promise().query(
+//       'SELECT user_id FROM posts WHERE id = ?',
+//       [postId]
+//     );
 
-    if (post[0] && post[0].user_id !== userId) {
-      await createNotification(post[0].user_id, 'retweet', userId, postId);
-    }
+//     
+//     if (posts.length > 0) {
+//       // Create notification for post owner
+//       await createNotification(posts[0].userId, 'like', userId, postId);
+//     }
 
-    res.json({ message: 'Successfully retweeted post' });
-  } catch (error) {
-    console.error('Error retweeting post:', error);
-    res.status(500).json({ message: 'Error retweeting post' });
-  }
-});
+//     // Get updated likes count
+//     const [result] = await db.promise().query(
+//       'SELECT COUNT(*) as count FROM likes WHERE post_id = ?',
+//       [postId]
+//     );
+
+//     // Emit like event to all connected clients
+//     io.emit('postLiked', { postId, likesCount: result[0].count });
+
+//     res.json({ message: 'Post liked successfully' });
+//   } catch (error) {
+//     console.error('Error unliking post:', error);
+//     res.status(500).json({ message: 'Error unliking post' });
+//   }
+// });
+
+
+
+// // Retweet post endpoint
+// app.post('/posts/:postId/retweet', authenticateToken, async (req, res) => {
+//   const userId = req.user.id;
+//   const postId = parseInt(req.params.postId);
+
+//   try {
+//     await db.promise().query(
+//       'INSERT INTO retweets (user_id, post_id) VALUES (?, ?)',
+//       [userId, postId]
+//     );
+
+//     const [post] = await db.promise().query(
+//       'SELECT user_id FROM posts WHERE id = ?',
+//       [postId]
+//     );
+
+//     if (post[0] && post[0].user_id !== userId) {
+//       await createNotification(post[0].user_id, 'retweet', userId, postId);
+//     }
+
+//     res.json({ message: 'Successfully retweeted post' });
+//   } catch (error) {
+//     console.error('Error retweeting post:', error);
+//     res.status(500).json({ message: 'Error retweeting post' });
+//   }
+// });
 
 // Get notifications endpoint
 app.get('/notifications', authenticateToken, async (req, res) => {
@@ -701,7 +734,7 @@ app.get('/notifications', authenticateToken, async (req, res) => {
        JOIN users u ON n.actor_id = u.id 
        WHERE n.user_id = ? 
        ORDER BY n.created_at DESC`,
-      [req.user.id]
+      [req.user.userId]
     );
     res.json(notifications);
   } catch (error) {
@@ -709,6 +742,8 @@ app.get('/notifications', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Error fetching notifications' });
   }
 });
+
+
 
 // Search users endpoint
 app.get('/users/search', authenticateToken, async (req, res) => {
@@ -718,9 +753,6 @@ app.get('/users/search', authenticateToken, async (req, res) => {
   if (!q || q.trim() === '') {
     return res.status(400).json({ message: 'Search query cannot be empty' });
   }
-
-  console.log('Buscando usuarios con q:', q);
-  console.log('ID del usuario autenticado:', userId);
 
   try {
     const [users] = await db.promise().query(
@@ -732,7 +764,7 @@ app.get('/users/search', authenticateToken, async (req, res) => {
       [userId, `%${q}%`, userId]
     );
 
-    console.log('Usuarios encontrados:', users);
+  
 
     res.json(users);
   } catch (error) {
@@ -741,7 +773,9 @@ app.get('/users/search', authenticateToken, async (req, res) => {
   }
 });
 
-
+app.get('/messager', (req, res) => {
+  res.sendFile(process.cwd() + '/client/index.html')
+})
 
 //--------------
 
@@ -752,4 +786,6 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
