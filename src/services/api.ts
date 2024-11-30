@@ -25,6 +25,22 @@ interface PostLikesResponse {
   isLikedByUser: boolean;
 }
 
+export interface Message {
+  id: number;
+  sender_id: number;
+  receiver_id: number;
+  content: string;
+  created_at: string;
+  sender: User;
+  receiver: User;
+}
+
+export interface Conversation {
+  id: number;
+  user: User;
+  lastMessage: Message;
+}
+
 export async function registerUser(username: string, password: string, email: string): Promise<AuthResponse | null> {
   try {
     const response = await fetch(`${API_URL}/register`, {
@@ -90,6 +106,131 @@ export async function createPost(content: string, media?: File, token: string): 
     return null;
   }
 }
+
+export async function getConversations(token: string): Promise<Conversation[]> {
+  try {
+    const response = await fetch(`${API_URL}/messages/conversations`, {
+      method:'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch conversations');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    return [];
+  }
+}
+
+export async function getMessages(token: string, userId: number): Promise<Message[]> {
+  try {
+    const response = await fetch(`${API_URL}/messages/${userId}`, {
+      method:'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch messages');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    return [];
+  }
+}
+
+export async function sendMessage(token: string, receiverId: number, content: string): Promise<Message | null> {
+  try {
+    const response = await fetch(`${API_URL}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ receiver_id: receiverId, content }),
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to send message');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error sending message:', error);
+    return null;
+  }
+}
+
+export async function updateUserProfile(token: string, data: Partial<User>) {
+  try {
+    const response = await fetch(`${API_URL}/users/profile`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update profile');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    throw error;
+  }
+}
+export async function getFollowers(token: string): Promise<User[]> {
+  try {
+    const response = await fetch(`${API_URL}/users/followers`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch followers');
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching followers:', error);
+    return [];
+  }
+}
+export async function updateUserStatus(token: string, status: string) {
+  try {
+    const response = await fetch(`${API_URL}/users/status`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to update status');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error updating status:', error);
+    throw error;
+  }
+}
+
 
 // export async function getPosts(token: string): Promise<Post[]> {
 //   try {

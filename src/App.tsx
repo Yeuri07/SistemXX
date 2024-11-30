@@ -78,7 +78,7 @@ function App() {
           <Route element={<Layout currentUser={currentUser} onLogout={handleLogout} />}>
             <Route index element={<Feed currentUser={currentUser} authToken={authToken} />} />
             <Route path="notifications" element={<Notifications />} />
-            <Route path="messages" element={<Messages currentUser={currentUser} />} />
+            <Route path="messages" element={<Messages currentUser={currentUser} authToken={authToken} />} />
             <Route path="profile" element={<Profile user={currentUser} authToken={authToken} />} />
             <Route path="profile/:username" element={<Profile user={currentUser} authToken={authToken} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
