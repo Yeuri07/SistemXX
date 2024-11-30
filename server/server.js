@@ -453,11 +453,14 @@ app.post('/posts/:id/comments', authenticateToken, async (req, res) => {
        WHERE c.id = ?`,
       [result.insertId]
     );
+    const [rows] = await db.promise().query('SELECT user_id FROM posts WHERE id = ?', [postId]);
+    const postOwnerId = rows.length > 0 ? rows[0].user_id : null;
+  
 
     //   // Create a notification for the post owner
-    // if (postOwnerId !== req.user.userId) { // Avoid sending a notification to the commenter themselves
-    //   await createNotification(postId, 'comment', req.user.userId, postId);
-    // }
+    if (postOwnerId !== req.user.userId) { // Avoid sending a notification to the commenter themselves
+      await createNotification(postOwnerId, 'comment', req.user.userId, postId);
+    }
 
     res.status(201).json(comment[0]);
   } catch (error) {
@@ -653,77 +656,143 @@ app.delete('/users/:userId/unfollow', authenticateToken, async (req, res) => {
   }
 });
 
+// Get followers endpoint
+app.get('/users/followers', authenticateToken, async (req, res) => {
+  try {
+    const [followers] = await db.promise().query(
+      `SELECT u.id, u.username, u.email
+       FROM users u 
+       INNER JOIN followers f ON f.followed_id = u.id 
+       WHERE f.follower_id = ?`,
+      [req.user.userId]
+    );
 
-// // Like post endpoint
-// app.post('/posts/:postId/like', authenticateToken, async (req, res) => {
-//   const { postId } = req.params;
-//   const userId = req.user.id;
-//   try {
-   
-//     // Add like
-//     await db.promise().query(
-//       'INSERT INTO likes (user_id, post_id) VALUES (?, ?)',
-//       [userId, postId]
-//     );
+    res.json(followers);
+  } catch (error) {
+    console.error('Error fetching followers:', error);
+    res.status(500).json({ message: 'Error fetching followers' });
+  }
+});
 
-//     await createNotification(userId, 'like', userId, null);
-       
-//     // Get post owner
-//     const [posts] = await db.promise().query(
-//       'SELECT user_id FROM posts WHERE id = ?',
-//       [postId]
-//     );
+// Get following endpoint
+app.get('/users/following', authenticateToken, async (req, res) => {
+  try {
+    console.log(req.user.userId)
+    const [following] = await db.promise().query(
+      `SELECT u.id, u.username, u.email
+       FROM users u 
+       INNER JOIN followers f ON f.follower_id = u.id 
+       WHERE f.followed_id = ?`,
+      [req.user.userId]
+    );
 
-//     
-//     if (posts.length > 0) {
-//       // Create notification for post owner
-//       await createNotification(posts[0].userId, 'like', userId, postId);
+    res.json(following);
+  } catch (error) {
+    console.error('Error fetching following:', error);
+    res.status(500).json({ message: 'Error fetching following' });
+  }
+});
+
+// Follow user endpoint
+app.post('/users/:userId/follow', authenticateToken, async (req, res) => {
+  const { userId } = req.params;
+  
+  try {
+    await db.promise().query(
+      'INSERT INTO followers (follower_id, followed_id) VALUES (?, ?)',
+      [req.user.id, userId]
+    );
+
+    // Create notification for followed user
+    await db.promise().query(
+      'INSERT INTO notifications (user_id, type, actor_id, target_id) VALUES (?, "follow", ?, ?)',
+      [userId, req.user.id, userId]
+    );
+
+    res.json({ message: 'Successfully followed user' });
+  } catch (error) {
+    console.error('Error following user:', error);
+    res.status(500).json({ message: 'Error following user' });
+  }
+});
+
+// // Endpoint para enviar un mensaje
+// app.post('/messages', (req, res) => {
+//   const { conversation_id, sender_id, content } = req.body;
+
+//   const query = `INSERT INTO messages (conversation_id, sender_id, content) VALUES (?, ?, ?)`;
+  
+//   db.query(query, [conversation_id, sender_id, content], (err, result) => {
+//     console.log(err)
+//     if (err) {
+//       return res.status(500).json({ message: 'Error sending message' });
 //     }
 
-//     // Get updated likes count
-//     const [result] = await db.promise().query(
-//       'SELECT COUNT(*) as count FROM likes WHERE post_id = ?',
-//       [postId]
-//     );
+//     // Emitir el mensaje al cliente conectado
+//     io.emit('newMessage', { conversation_id, sender_id, content });
 
-//     // Emit like event to all connected clients
-//     io.emit('postLiked', { postId, likesCount: result[0].count });
+//     res.status(201).json({ message: 'Message sent' });
+//   });
+// });
 
-//     res.json({ message: 'Post liked successfully' });
-//   } catch (error) {
-//     console.error('Error unliking post:', error);
-//     res.status(500).json({ message: 'Error unliking post' });
-//   }
+// // Configura socket.io para la mensajería en tiempo real
+// io.on('connection', (socket) => {
+
+//   // Emitir un mensaje a un cliente específico si es necesario
+//   socket.on('joinConversation', (conversationId) => {
+//     socket.join(conversationId);
+//   });
+
+//   socket.on('sendMessage', (message) => {
+//     socket.to(message.conversationId).emit('newMessage', message);
+//   });
+
+//   socket.on('disconnect', () => {
+//     console.log('user disconnected');
+//   });
 // });
 
 
+// Endpoint para obtener los usuarios que siguen al usuario actual para menssager
+app.get('/users/following', authenticateToken, async (req, res) => {
+  const userId = req.user.userId;
+  console.log(userId)
 
-// // Retweet post endpoint
-// app.post('/posts/:postId/retweet', authenticateToken, async (req, res) => {
-//   const userId = req.user.id;
-//   const postId = parseInt(req.params.postId);
+  try {
+    const [followers] = await db.promise().query(
+      `SELECT u.id, u.username, u.profile_picture 
+       FROM users u
+       JOIN followers f ON u.id = f.follower_id
+       WHERE f.followed_id = ?`, [userId]
+    );
 
-//   try {
-//     await db.promise().query(
-//       'INSERT INTO retweets (user_id, post_id) VALUES (?, ?)',
-//       [userId, postId]
-//     );
+    res.json(followers);
+  } catch (error) {
+    console.error('Error fetching followers:', error);
+    res.status(500).json({ message: 'Error fetching followers' });
+  }
+});
 
-//     const [post] = await db.promise().query(
-//       'SELECT user_id FROM posts WHERE id = ?',
-//       [postId]
-//     );
+// Configura Socket.IO para la mensajería en tiempo real
+io.on('connection', (socket) => {
 
-//     if (post[0] && post[0].user_id !== userId) {
-//       await createNotification(post[0].user_id, 'retweet', userId, postId);
-//     }
+  // Escuchar evento cuando el cliente se une a una conversación
+  socket.on('joinConversation', (conversationId) => {
+    socket.join(conversationId);
+    console.log(`Usuario ${socket.id} se unió a la conversación ${conversationId}`);
+  });
 
-//     res.json({ message: 'Successfully retweeted post' });
-//   } catch (error) {
-//     console.error('Error retweeting post:', error);
-//     res.status(500).json({ message: 'Error retweeting post' });
-//   }
-// });
+  // Enviar mensaje a la conversación
+  socket.on('sendMessage', (message) => {
+    socket.to(message.conversationId).emit('newMessage', message);
+    console.log('Mensaje enviado:', message);
+  });
+
+  // Desconectar usuario
+  socket.on('disconnect', () => {
+    console.log('Usuario desconectado', socket.id);
+  });
+});
 
 // Get notifications endpoint
 app.get('/notifications', authenticateToken, async (req, res) => {
