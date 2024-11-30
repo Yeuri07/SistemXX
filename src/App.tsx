@@ -16,6 +16,7 @@ import Sidebar from './components/Sidebar'
 import { connectSocket, disconnectSocket } from './services/socket'
 import { Outlet } from "react-router-dom";
 import  UserSearch  from './components/UserSearch'
+import LoadingScreen from './components/LoadingScreen'
 
 
 
@@ -23,6 +24,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
   const [authToken, setAuthToken] = useState('')
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken')
@@ -31,8 +33,9 @@ function App() {
       setAuthToken(storedToken)
       setIsLoggedIn(true)
       setCurrentUser(JSON.parse(storedUser))
-      connectSocket(storedToken)
+   
     }
+    setLoading(false);
   }, [])
 
   const handleLogin = (user: any, token: string) => {
@@ -96,6 +99,10 @@ function App() {
       }
     }
   )
+  if (loading) {
+    // Muestra una pantalla de carga mientras se verifica el token
+    return <LoadingScreen />
+  }
 
   return (
 

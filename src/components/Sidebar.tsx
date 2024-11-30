@@ -21,11 +21,13 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
   return (
     <div className="w-64 p-4">
       <div className="flex items-center mb-2">
+        <Link to={'/'}>
         <img
           src={logo}
           alt={currentUser.username}
           className="w-24 h-24 rounded-full mr-2"
         />
+        </Link>
       </div>
       <nav>
         <ul>

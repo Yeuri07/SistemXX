@@ -20,6 +20,10 @@ interface Post {
   username: string;
 }
 
+interface PostLikesResponse {
+  likes: number;
+  isLikedByUser: boolean;
+}
 
 export async function registerUser(username: string, password: string, email: string): Promise<AuthResponse | null> {
   try {
@@ -142,7 +146,7 @@ export async function likePost(postId: number, token: string): Promise<boolean> 
 
 export async function unlikePost(postId: number, token: string): Promise<boolean> {
   try {
-    const response = await fetch(`${API_URL}/posts/${postId}/unlike`, {
+    const response = await fetch(`${API_URL}/posts/${postId}/like`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -155,21 +159,28 @@ export async function unlikePost(postId: number, token: string): Promise<boolean
   }
 }
 
-export async function getPostLikes(postId: number, token: string): Promise<number> {
+export async function getPostLikes(postId: number, token: string): Promise<PostLikesResponse> {
   try {
     const response = await fetch(`${API_URL}/posts/${postId}/likes`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
+
     const data = await response.json();
     if (response.ok) {
-      return data.likes;
+      return {
+        likes: data.likes,
+        isLikedByUser: data.isLikedByUser,
+      };
     }
     throw new Error(data.message);
   } catch (error) {
     console.error('Error getting post likes:', error);
-    return 0;
+    return {
+      likes: 0,
+      isLikedByUser: false,
+    };
   }
 }
 

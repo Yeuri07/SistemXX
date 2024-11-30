@@ -182,6 +182,7 @@ const Profile: React.FC<ProfileProps> = ({ user: currentUser, authToken }) => {
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
   const [userPosts, setUserPosts] = useState([])
   const [isEditingStatus, setIsEditingStatus] = useState(false)
+  const [isFollowing, setIsFollowing] = useState(false); 
   const [status, setStatus] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   
@@ -202,6 +203,15 @@ const Profile: React.FC<ProfileProps> = ({ user: currentUser, authToken }) => {
         // Fetch user posts
         const posts = await getUserPosts(targetUsername, authToken)
         setUserPosts(posts)
+         // Check if the current user is following the profile
+         const response = await fetch(`http://localhost:5000/users/${profile.id}/is-following`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+          },
+        });
+        const data = await response.json();
+        setIsFollowing(data.isFollowing);
       } catch (error) {
         console.error('Error fetching profile data:', error)
       }
@@ -210,13 +220,48 @@ const Profile: React.FC<ProfileProps> = ({ user: currentUser, authToken }) => {
     fetchData()
   }, [username, currentUser.username, authToken])
 
+  const handleFollow = async () => {
+    try {
+      const response = await fetch(`http://localhost:5000/users/${profileData?.id}/follow`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.ok) {
+        setIsFollowing(true); // Actualizamos el estado a "siguiendo"
+      }
+    } catch (error) {
+      console.error('Error following user:', error);
+    }
+  };
+  const handleUnfollow = async () => {
+    try {
+      const response = await fetch(`http://localhost:5000/users/${profileData?.id}/unfollow`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+        },
+      });
+
+      if (response.ok) {
+        setIsFollowing(false); // Actualizamos el estado a "no siguiendo"
+      }
+    } catch (error) {
+      console.error('Error unfollowing user:', error);
+    }
+  };
+ 
+
   const handleProfilePictureChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
     const formData = new FormData()
-    formData.append('profile_picture', file)
 
+    formData.append('profile_picture', file)
+   
     try {
       const response = await fetch('http://localhost:5000/users/profile-picture', {
         method: 'POST',
@@ -236,6 +281,7 @@ const Profile: React.FC<ProfileProps> = ({ user: currentUser, authToken }) => {
     }
   }
 
+  
   const handleStatusUpdate = async () => {
     try {
       const response = await fetch('http://localhost:5000/users/status', {
@@ -302,8 +348,13 @@ const Profile: React.FC<ProfileProps> = ({ user: currentUser, authToken }) => {
             <p className="text-gray-500">@{profileData.username.toLowerCase()}</p>
           </div>
           {!isOwnProfile && (
-            <button className="px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600">
-              Follow
+              <button
+              onClick={isFollowing ? handleUnfollow : handleFollow} // Cambiar entre Follow y Unfollow
+              className={`px-4 py-2 rounded-full ${
+                isFollowing ? 'bg-gray-100 text-gray-800' : 'bg-blue-500 text-white'
+              }`}
+            >
+              {isFollowing ? 'Following' : 'Follow'}
             </button>
           )}
         </div>

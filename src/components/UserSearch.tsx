@@ -65,7 +65,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ authToken, currentUser }) => {
   const handleUnfollow = async (userId: number) => {
     try {
       const response = await fetch(`http://localhost:5000/users/${userId}/unfollow`, {
-        method: 'POST',
+        method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${authToken}`
         }

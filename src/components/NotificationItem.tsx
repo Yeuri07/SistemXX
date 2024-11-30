@@ -51,12 +51,12 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onMar
     >
       <div className="mr-3">{getIcon()}</div>
       <div className="flex-1">
-        <Link to={`/profile/${notification.actorUsername}`} className="hover:underline">
-          <span className="font-bold">{notification.actorUsername}</span>
+        <Link to={`/profile/${notification.actor_username}`} className="hover:underline">
+          <span className="font-bold">{notification.actor_username}</span>
         </Link>{' '}
         <span>{getMessage()}</span>
         <p className="text-gray-500 text-sm">
-          {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
         </p>
       </div>
       {!notification.read && (

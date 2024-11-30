@@ -2,11 +2,11 @@ import { socket } from './socket';
 
 export interface Notification {
   id: number;
-  type: 'follow' | 'like' | 'retweet';
+  type: 'follow' | 'like' | 'comment';
   actorId: number;
-  actorUsername: string;
+  actor_username: string;
   targetId: number;
-  createdAt: string;
+  created_at: string;
   read: boolean;
 }
 

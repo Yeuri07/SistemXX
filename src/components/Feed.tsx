@@ -2,8 +2,6 @@ import React, { useState, useEffect,useRef,useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Heart, MessageCircle, Repeat2, Share, Image, Film } from 'lucide-react'
 import { createPost, getPosts, likePost, unlikePost, getPostLikes, createComment, getComments } from '../services/api'
-import  UserSearch  from './UserSearch'
-import { socket } from '../services/socket';
 
 interface Tweet {
   id: number;
@@ -155,12 +153,14 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
   useEffect(() => {
     fetchLikes()
     fetchComments()
+     
   }, [tweet.id])
-
+  
   const fetchLikes = async () => {
     try {
-      const likesCount = await getPostLikes(tweet.id, authToken)
-      setLikes(likesCount)
+      const { likes, isLikedByUser }= await getPostLikes(tweet.id, authToken)
+      setLikes(likes); // Actualiza el conteo de likes
+      setIsLiked(isLikedByUser); // Establece si el usuario ha dado like o no
     } catch (error) {
       console.error('Error fetching likes:', error)
     }
@@ -180,18 +180,21 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
 
   const handleLike = async () => {
     try {
-      if (isLiked) {
-        const success = await unlikePost(tweet.id, authToken)
-        if (success) {
-          setLikes(likes - 1)
-          setIsLiked(false)
-        }
-      } else {
-        const success = await likePost(tweet.id, authToken)
-        if (success) {
-          setLikes(likes + 1)
-          setIsLiked(true)
-        }
+    
+        if (isLiked) {
+          // Si el usuario ya dio like, eliminarlo
+          const success = await unlikePost(tweet.id, authToken);
+          if (success) {
+            setLikes(likes - 1); // Disminuir el número de likes
+            setIsLiked(false); // Establecer el estado como "no le gustó"
+          }
+        } else {
+          // Si el usuario no ha dado like, agregarlo
+          const success = await likePost(tweet.id, authToken);
+          if (success) {
+            setLikes(likes + 1); // Aumentar el número de likes
+            setIsLiked(true); // Establecer el estado como "le gustó"
+          }
       }
     } catch (error) {
       console.error('Error handling like:', error)
@@ -222,7 +225,7 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
   return (
     <div className="border-b border-gray-200 p-4">
       <div className="flex items-center mb-2">
-        <Link to={`/profile/${tweet.username}`} className="flex items-center">
+        <Link to={`/profile/${tweet.username}`} className="flex items-center"> 
           <img
               src={`https://api.dicebear.com/6.x/initials/svg?seed=${tweet.username}`}
             alt={tweet.username}
@@ -248,7 +251,8 @@ const Tweet: React.FC<TweetProps> = ({ tweet, currentUser, authToken }) => {
             <video 
               src={`http://localhost:5000${tweet.media_url}`} 
               className="rounded-lg max-h-96 w-full" 
-              controls 
+              controls
+              muted autoPlay loop 
             />
           )}
         </div>
@@ -378,16 +382,18 @@ const Feed: React.FC<FeedProps> = ({ currentUser, authToken }) => {
     <div className="h-screen overflow-y-auto">
       
       <TweetForm onTweet={handleNewTweet} currentUser={currentUser} authToken={authToken} />
+      
       {tweets.map((tweet, index) => {
+        const key = `${tweet.id}-${index}`
         if (tweets.length === index + 1) {
           return (
-            <div ref={lastTweetElementRef} key={tweet.id}>
+            <div ref={lastTweetElementRef} key={key}>
               <Tweet tweet={tweet} currentUser={currentUser} authToken={authToken} />
             </div>
           )
         } else {
           return (
-            <Tweet key={tweet.id} tweet={tweet} currentUser={currentUser} authToken={authToken} />
+            <Tweet key={key} tweet={tweet} currentUser={currentUser} authToken={authToken} />
           )
         }
       })}
