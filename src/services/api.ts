@@ -232,36 +232,18 @@ export async function updateUserStatus(token: string, status: string) {
 }
 
 
-// export async function getPosts(token: string): Promise<Post[]> {
-//   try {
-//     const response = await fetch(`${API_URL}/posts`, {
-//       headers: {
-//         'Authorization': `Bearer ${token}`,
-//       },
-//     });
-//     if (!response.ok) {
-//       throw new Error(`HTTP error! status: ${response.status}`);
-//     }
-//     const data = await response.json();
-//     return data;
-//   } catch (error) {
-//     console.error('Error fetching posts:', error);
-//     return [];
-//   }
-// }
-
-export async function getPosts(token: string, page: number = 1, limit: number = 10): Promise<any[]> {
+export async function getPosts(token: string): Promise<Post[]> {
   try {
-    const response = await fetch(`${API_URL}/posts?page=${page}&limit=${limit}`, {
+   
+    const response = await fetch(`${API_URL}/posts`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
     });
-    
+
     if (!response.ok) {
-      throw new Error('Failed to fetch posts');
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
     const data = await response.json();
     return data;
   } catch (error) {
@@ -269,6 +251,26 @@ export async function getPosts(token: string, page: number = 1, limit: number = 
     return [];
   }
 }
+
+// export async function getPosts(token: string, page: number = 1, limit: number = 10): Promise<any[]> {
+//   try {
+//     const response = await fetch(`${API_URL}/posts?page=${page}&limit=${limit}`, {
+//       headers: {
+//         'Authorization': `Bearer ${token}`,
+//       },
+//     });
+    
+//     if (!response.ok) {
+//       throw new Error('Failed to fetch posts');
+//     }
+    
+//     const data = await response.json();
+//     return data;
+//   } catch (error) {
+//     console.error('Error fetching posts:', error);
+//     return [];
+//   }
+// }
 
 export async function likePost(postId: number, token: string): Promise<boolean> {
   try {

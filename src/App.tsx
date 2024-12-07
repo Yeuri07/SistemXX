@@ -5,6 +5,7 @@ import {
   RouterProvider,
   Route,
   Navigate,
+  Outlet,
 } from 'react-router-dom'
 import Feed from './components/Feed'
 import Profile from './components/Profile'
@@ -14,17 +15,33 @@ import Login from './components/Login'
 import Register from './components/Register'
 import Sidebar from './components/Sidebar'
 import { connectSocket, disconnectSocket } from './services/socket'
-import { Outlet } from "react-router-dom";
-import  UserSearch  from './components/UserSearch'
-import LoadingScreen from './components/LoadingScreen'
+import { UserProvider } from './context/UserContext'
+import UserSearch from './components/UserSearch'
 
+interface LayoutProps {
+  currentUser: any;
+  authToken: string;
+  onLogout: () => void;
+}
 
+const Layout: React.FC<LayoutProps> = ({ currentUser, authToken, onLogout }) => {
+  return (
+    <div className="flex h-screen">
+      <div className="w-64 fixed h-full border-r border-gray-200">
+        <Sidebar currentUser={currentUser} onLogout={onLogout} />
+      </div>
+      <main className="flex-1 ml-64 border-l border-r border-gray-200 max-w-2xl">
+        <Outlet context={{ currentUser, authToken }} />
+      </main>
+      <div className=""><UserSearch authToken={authToken} currentUser={currentUser} /></div>
+    </div>
+  )
+}
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
   const [authToken, setAuthToken] = useState('')
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('authToken')
@@ -33,9 +50,8 @@ function App() {
       setAuthToken(storedToken)
       setIsLoggedIn(true)
       setCurrentUser(JSON.parse(storedUser))
-   
+      connectSocket(storedToken)
     }
-    setLoading(false);
   }, [])
 
   const handleLogin = (user: any, token: string) => {
@@ -55,27 +71,12 @@ function App() {
     localStorage.removeItem('authToken')
     disconnectSocket()
   }
-  const Layout = ({ currentUser, onLogout }) => {
-    return (
-      
-      <div className="flex h-screen">
-        <div className="w-64 fixed h-full border-r border-gray-200">
-          <Sidebar currentUser={currentUser} onLogout={onLogout} />
-        </div>
-        <main className="flex-1 ml-64 border-l border-r border-gray-200 max-w-2xl">
-          <Outlet />
-        </main>
-        <div className=""><UserSearch authToken={authToken} currentUser={currentUser} /></div>
-      </div>
-      
-    )
-  }
-  
+
   const router = createBrowserRouter(
     createRoutesFromElements(
       <Route path="/">
         {isLoggedIn ? (
-          <Route element={<Layout currentUser={currentUser} onLogout={handleLogout} />}>
+          <Route element={<Layout currentUser={currentUser} authToken={authToken} onLogout={handleLogout} />}>
             <Route index element={<Feed currentUser={currentUser} authToken={authToken} />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="messages" element={<Messages currentUser={currentUser} authToken={authToken} />} />
@@ -92,24 +93,15 @@ function App() {
           </Route>
         )}
       </Route>
-    ),
-    {
-      future: {
-        v7_startTransition: true
-      }
-    }
+    )
   )
-  if (loading) {
-    // Muestra una pantalla de carga mientras se verifica el token
-    return <LoadingScreen />
-  }
 
   return (
-
-    <div className="min-h-screen bg-gray-100">
-      <RouterProvider router={router} />
-    </div>
-
+    <UserProvider>
+      <div className="min-h-screen bg-gray-100">
+        <RouterProvider router={router} />
+      </div>
+    </UserProvider>
   )
 }
 

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report of XX</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+    }
+    .dashboard {
+      padding: 20px;
+    }
+    .card {
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container dashboard">
+    <h1 class="text-center mb-4">Dashboard XX</h1>
+    
+    <!-- Overview Section -->
+    <div class="row">
+      <div class="col-md-3">
+        <div class="card text-white bg-primary">
+          <div class="card-body">
+            <h5 class="card-title">Total Posts</h5>
+            <h2 id="total-posts">0</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-white bg-success">
+          <div class="card-body">
+            <h5 class="card-title">Total Likes</h5>
+            <h2 id="total-likes">0</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-white bg-warning">
+          <div class="card-body">
+            <h5 class="card-title">Total Comments</h5>
+            <h2 id="total-comments">0</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card text-white bg-danger">
+          <div class="card-body">
+            <h5 class="card-title">Total Users</h5>
+            <h2 id="data.total_users">0</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Graphs Section -->
+    <div class="row mt-4">
+      <div class="col-md-6">
+        <h4>Likes Over Time</h4>
+        <canvas id="likesChart"></canvas>
+      </div>
+      <div class="col-md-6">
+        <h4>Comments Over Time</h4>
+        <canvas id="commentsChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Función para obtener datos del servidor
+    async function loadDashboardData() {
+      try {
+        const response = await fetch('/api/dashboard'); // Llama a la API
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+
+        // Actualiza las estadísticas
+        document.getElementById("total-posts").textContent = data.total_posts;
+        document.getElementById("total-likes").textContent = data.total_likes;
+        document.getElementById("total-comments").textContent = data.total_comments;
+        document.getElementById("data.total_users").textContent = data.total_users;
+
+        // Opcional: Si tienes gráficos dinámicos, puedes actualizar aquí los datos.
+        updateCharts(data);
+      } catch (error) {
+        console.error('Error al obtener datos del servidor:', error);
+      }
+    }
+
+    // Actualiza los gráficos con los datos reales
+    function updateCharts(data) {
+      // Ejemplo: actualiza gráficos con datos dummy
+      const likesCtx = document.getElementById("likesChart").getContext("2d");
+      const commentsCtx = document.getElementById("commentsChart").getContext("2d");
+
+      // Likes Chart
+      new Chart(likesCtx, {
+        type: "line",
+        data: {
+          labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+          datasets: [{
+            label: "Likes",
+            data: [10, 20, 30, 50, 80, 150], // Ajusta esto con datos reales si es necesario
+            borderColor: "rgba(75, 192, 192, 1)",
+            backgroundColor: "rgba(75, 192, 192, 0.2)",
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: "top",
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+
+      // Comments Chart
+      new Chart(commentsCtx, {
+        type: "bar",
+        data: {
+          labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+          datasets: [{
+            label: "Comments",
+            data: [5, 10, 15, 25, 60, 100], // Ajusta esto con datos reales si es necesario
+            backgroundColor: "rgba(255, 99, 132, 0.2)",
+            borderColor: "rgba(255, 99, 132, 1)",
+            borderWidth: 1,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: "top",
+            },
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
+    // Carga inicial de datos
+    loadDashboardData();
+  </script>
+</body>
+</html>

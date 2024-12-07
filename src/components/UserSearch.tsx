@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, UserPlus, UserCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useUser } from '../context/UserContext';
 
 interface User {
   id: number;
   username: string;
   isFollowing: boolean;
+  profile_picture?: string;
 }
 
 interface UserSearchProps {
@@ -17,6 +19,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ authToken, currentUser }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const { profilePicture } = useUser();
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -81,6 +84,15 @@ const UserSearch: React.FC<UserSearchProps> = ({ authToken, currentUser }) => {
     }
   };
 
+  const getUserProfilePicture = (user: User) => {
+    if (user.username === currentUser.username && profilePicture) {
+      return `http://localhost:5000${profilePicture}`;
+    }
+    return user.profile_picture 
+      ? `http://localhost:5000${user.profile_picture}`
+      : `https://api.dicebear.com/6.x/initials/svg?seed=${user.username}`;
+  };
+
   return (
     <div className="mb-6 bg-white rounded-lg shadow p-4">
       <div className="relative">
@@ -104,7 +116,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ authToken, currentUser }) => {
             <div key={user.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg">
               <Link to={`/profile/${user.username}`} className="flex items-center space-x-3">
                 <img
-                  src={`https://api.dicebear.com/6.x/initials/svg?seed=${user.username}`}
+                  src={getUserProfilePicture(user)}
                   alt={user.username}
                   className="w-10 h-10 rounded-full"
                 />

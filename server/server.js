@@ -9,7 +9,6 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 require('dotenv').config();
 const http = require('http');
-
 const { Server } = require('socket.io');
 const { createServer } = require('node:http');
 
@@ -153,6 +152,48 @@ app.post('/users/profile-picture', authenticateToken, (req, res) => {
       res.status(500).json({ message: 'Error updating profile picture' });
     }
   });
+});
+
+app.put('/posts/:postId/comments/:commentId', authenticateToken, async (req, res) => {
+  const { postId, commentId } = req.params;
+  const { content } = req.body;
+  console.log(req.body)
+  try {
+    // Verificar si el comentario existe
+    const [comment] = await db.promise().query(
+      'SELECT * FROM comments WHERE id = ? AND post_id = ?',
+      [commentId, postId]
+    );
+
+    if (comment.length === 0) {
+      return res.status(404).json({ message: 'Comment not found' });
+    }
+
+    // Verificar si el usuario es el propietario del comentario
+    if (comment[0].user_id !== req.user.userId) {
+      return res.status(403).json({ message: 'You are not authorized to edit this comment' });
+    }
+
+    // Actualizar el contenido del comentario
+    const [result] = await db.promise().query(
+      'UPDATE comments SET content = ? WHERE id = ?',
+      [content, commentId]
+    );
+
+    // Obtener el comentario actualizado
+    const [updatedComment] = await db.promise().query(
+      `SELECT c.*, u.username, u.profile_picture 
+       FROM comments c 
+       JOIN users u ON c.user_id = u.id 
+       WHERE c.id = ?`,
+      [commentId]
+    );
+
+    res.status(200).json(updatedComment[0]);
+  } catch (error) {
+    console.error('Error updating comment:', error);
+    res.status(500).json({ message: 'Error updating comment' });
+  }
 });
 
 // Update user status
@@ -439,6 +480,7 @@ app.get('/posts/:id/likes', authenticateToken, async (req, res) => {
 app.post('/posts/:id/comments', authenticateToken, async (req, res) => {
   const postId = req.params.id;
   const { content } = req.body;
+
   try {
     const [result] = await db.promise().query(
       'INSERT INTO comments (post_id, user_id, content) VALUES (?, ?, ?)',
@@ -842,8 +884,162 @@ app.get('/users/search', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/messager', (req, res) => {
-  res.sendFile(process.cwd() + '/client/index.html')
+// app.get('/messager', (req, res) => {
+//   res.sendFile(process.cwd() + '/reports/index.html')
+// })
+
+
+// Delete post endpoint
+app.delete('/posts/:postId', authenticateToken, async (req, res) => {
+  const { postId } = req.params;
+  const userId = req.user.userId
+
+  try {
+    // First check if the post exists and belongs to the user
+    const [post] = await db.promise().query(
+      'SELECT * FROM posts WHERE id = ? AND user_id = ?',
+      [postId, userId]
+    );
+
+    if (post.length === 0) {
+      return res.status(403).json({ message: 'Not authorized to delete this post' });
+    }
+
+    // Delete associated media file if exists
+    if (post[0].media_url) {
+      const filePath = path.join(__dirname, post[0].media_url);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    // Delete the post and all associated data (comments, likes, etc.)
+    await db.promise().query('DELETE FROM comments WHERE post_id = ?', [postId]);
+    await db.promise().query('DELETE FROM likes WHERE post_id = ?', [postId]);
+    await db.promise().query('DELETE FROM posts WHERE id = ?', [postId]);
+
+    res.json({ message: 'Post deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting post:', error);
+    res.status(500).json({ message: 'Error deleting post' });
+  }
+});
+
+
+// Update post endpoint with media handling
+
+// app.put('/posts/:postId', authenticateToken, upload.single('media'), async (req, res) => {
+//   const { postId } = req.params;
+//   const { content, removeMedia } = req.body;
+//   const userId = req.user.id;
+
+//   try {
+//     // Check if post exists and belongs to user
+//     const [post] = await db.promise().query(
+//       'SELECT * FROM posts WHERE id = ? AND user_id = ?',
+//       [postId, userId]
+//     );
+
+//     if (post.length === 0) {
+//       return res.status(403).json({ message: 'Not authorized to update this post' });
+//     }
+
+//     let mediaUrl = post[0].media_url;
+//     let mediaType = post[0].media_type;
+
+//     // Handle media removal if requested
+//     if (removeMedia === 'true' && post[0].media_url) {
+//       const filePath = path.join(__dirname, post[0].media_url);
+//       if (fs.existsSync(filePath)) {
+//         fs.unlinkSync(filePath);
+//       }
+//       mediaUrl = null;
+//       mediaType = null;
+//     }
+
+//     // Handle new media upload
+//     if (req.file) {
+//       // Remove old media if it exists
+//       if (post[0].media_url) {
+//         const oldFilePath = path.join(__dirname, post[0].media_url);
+//         if (fs.existsSync(oldFilePath)) {
+//           fs.unlinkSync(oldFilePath);
+//         }
+//       }
+
+//       mediaUrl = '/uploads/' + req.file.filename;
+//       mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 'video';
+//     }
+
+//     // Update post
+//     await db.promise().query(
+//       'UPDATE posts SET content = ?, media_url = ?, media_type = ? WHERE id = ?',
+//       [content, mediaUrl, mediaType, postId]
+//     );
+
+//     res.json({
+//       message: 'Post updated successfully',
+//       content,
+//       mediaUrl,
+//       mediaType
+//     });
+//   } catch (error) {
+//     console.error('Error updating post:', error);
+//     res.status(500).json({ message: 'Error updating post' });
+//   }
+// });
+
+// Delete comment endpoint
+app.delete('/comments/:commentId', authenticateToken, async (req, res) => {
+  const { commentId } = req.params;
+  const userId = req.user.userId;
+
+  console.log(userId)
+
+  try {
+    // Check if comment exists and belongs to user
+    const [comment] = await db.promise().query(
+      'SELECT * FROM comments WHERE id = ? AND user_id = ?',
+      [commentId, userId]
+    );
+
+    if (comment.length === 0) {
+      return res.status(403).json({ message: 'Not authorized to delete this comment' });
+    }
+
+    await db.promise().query('DELETE FROM comments WHERE id = ?', [commentId]);
+    res.json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting comment:', error);
+    res.status(500).json({ message: 'Error deleting comment' });
+  }
+});
+
+//report Dasboard
+
+app.get('/api/dashboard', (req, res) => {
+  const totalsQuery = `
+    SELECT 
+      (SELECT COUNT(*) FROM posts) AS total_posts,
+      (SELECT COUNT(*) FROM likes) AS total_likes,
+      (SELECT COUNT(*) FROM comments) AS total_comments,
+      (SELECT COUNT(*) FROM users) AS total_users
+  `;
+
+  db.query(totalsQuery, (err, results) => {
+    if (err) {
+      console.error('Error ejecutando la consulta:', err.message);
+      res.status(500).json({ error: 'Error al obtener datos del dashboard' });
+      return;
+    }
+
+    res.json(results[0]); // Enviar el primer registro como JSON
+  });
+});
+
+
+app.get('/report/dasboard',(req, res) =>{
+  res.sendFile(process.cwd() + '/reports/index.html')
 })
 
 //--------------
