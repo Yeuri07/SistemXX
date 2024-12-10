@@ -11,6 +11,7 @@ import {
 import ConversationList from './ConversationList';
 import MessageList from './MessageList';
 import NewMessageModal from './NewMessageModal';
+import { useUser } from '../context/UserContext';
 
 interface MessagesProps {
   currentUser: {
@@ -26,42 +27,60 @@ const Messages: React.FC<MessagesProps> = ({ currentUser, authToken }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isNewMessageModalOpen, setIsNewMessageModalOpen] = useState(false);
-  console.log(selectedConversation?.user.id)
+  const { profilePicture } = useUser();
+
   useEffect(() => {
     loadConversations();
+    // Set up periodic refresh of conversations
+    const intervalId = setInterval(loadConversations, 10000);
+    return () => clearInterval(intervalId);
   }, [authToken]);
 
   useEffect(() => {
     if (selectedConversation) {
-    
-      loadMessages(selectedConversation?.user.id);
+      loadMessages(selectedConversation.user.id);
+      // Set up periodic refresh of messages
+      const intervalId = setInterval(() => loadMessages(selectedConversation.user.id), 5000);
+      return () => clearInterval(intervalId);
     }
   }, [selectedConversation, authToken]);
 
   const loadConversations = async () => {
-    const fetchedConversations = await getConversations(authToken);
-    setConversations(fetchedConversations);
+    try {
+      const fetchedConversations = await getConversations(authToken);
+      setConversations(fetchedConversations);
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+    }
   };
 
   const loadMessages = async (userId: number) => {
-    const fetchedMessages = await getMessages(authToken, userId);
-    setMessages(fetchedMessages);
+    try {
+      const fetchedMessages = await getMessages(authToken, userId);
+      setMessages(fetchedMessages);
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedConversation) return;
 
-    const sentMessage = await sendMessage(
-      authToken,
-      selectedConversation.user.id,
-      newMessage
-    );
+    try {
+      const sentMessage = await sendMessage(
+        authToken,
+        selectedConversation.user.id,
+        newMessage.trim()
+      );
 
-    if (sentMessage) {
-      setMessages([...messages, sentMessage]);
-      setNewMessage('');
-      loadConversations(); // Refresh conversations to update last message
+      if (sentMessage) {
+        setMessages(prev => [...prev, sentMessage]);
+        setNewMessage('');
+        loadConversations(); // Refresh conversations to update last message
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
     }
   };
 
@@ -74,17 +93,28 @@ const Messages: React.FC<MessagesProps> = ({ currentUser, authToken }) => {
       setSelectedConversation(existingConversation);
     } else {
       const newConv: Conversation = {
-        id: Date.now(), // Temporary ID
+        id: Date.now(),
         user,
         lastMessage: null,
       };
       setConversations([newConv, ...conversations]);
       setSelectedConversation(newConv);
     }
+    setIsNewMessageModalOpen(false);
+  };
+
+  const getUserProfilePicture = (username: string) => {
+    if (username === currentUser.username && profilePicture) {
+
+      return `http://localhost:5000${profilePicture}`;
+    }
+    return `https://api.dicebear.com/6.x/initials/svg?seed=${username}`;
   };
 
   return (
+    
     <div className="flex h-[calc(100vh-64px)]">
+      
       <div className="w-1/3 border-r border-gray-200 flex flex-col">
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-xl font-bold">Messages</h2>
@@ -99,24 +129,28 @@ const Messages: React.FC<MessagesProps> = ({ currentUser, authToken }) => {
           conversations={conversations}
           selectedConversation={selectedConversation}
           onSelectConversation={setSelectedConversation}
+          currentUser={currentUser}
         />
       </div>
 
       <div className="flex-1 flex flex-col">
-      
         {selectedConversation ? (
           <>
             <div className="p-4 border-b border-gray-200 flex items-center">
               <img
-                src={`https://api.dicebear.com/6.x/initials/svg?seed=${selectedConversation.user.username}`}
+                src={getUserProfilePicture(selectedConversation.user.username)}
                 alt={selectedConversation.user.username}
                 className="w-10 h-10 rounded-full mr-3"
               />
               <h3 className="font-bold">{selectedConversation.user.username}</h3>
             </div>
             
-
-            <MessageList messages={messages} currentUserId={currentUser.id} />
+            <MessageList 
+              messages={messages} 
+              currentUserId={selectedConversation.id} 
+              currentUser={currentUser}
+              selectedUser={selectedConversation.user}
+            />
 
             <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200">
               <div className="flex space-x-2">
@@ -129,7 +163,7 @@ const Messages: React.FC<MessagesProps> = ({ currentUser, authToken }) => {
                 />
                 <button
                   type="submit"
-                  className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600"
+                  className="bg-blue-500 text-white p-2 rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={!newMessage.trim()}
                 >
                   <Send className="w-5 h-5" />
@@ -149,6 +183,7 @@ const Messages: React.FC<MessagesProps> = ({ currentUser, authToken }) => {
         onClose={() => setIsNewMessageModalOpen(false)}
         onSelectUser={handleNewConversation}
         authToken={authToken}
+        currentUser={currentUser}
       />
     </div>
   );

@@ -157,7 +157,7 @@ app.post('/users/profile-picture', authenticateToken, (req, res) => {
 app.put('/posts/:postId/comments/:commentId', authenticateToken, async (req, res) => {
   const { postId, commentId } = req.params;
   const { content } = req.body;
-  console.log(req.body)
+
   try {
     // Verificar si el comentario existe
     const [comment] = await db.promise().query(
@@ -758,42 +758,6 @@ app.post('/users/:userId/follow', authenticateToken, async (req, res) => {
   }
 });
 
-// // Endpoint para enviar un mensaje
-// app.post('/messages', (req, res) => {
-//   const { conversation_id, sender_id, content } = req.body;
-
-//   const query = `INSERT INTO messages (conversation_id, sender_id, content) VALUES (?, ?, ?)`;
-  
-//   db.query(query, [conversation_id, sender_id, content], (err, result) => {
-//     console.log(err)
-//     if (err) {
-//       return res.status(500).json({ message: 'Error sending message' });
-//     }
-
-//     // Emitir el mensaje al cliente conectado
-//     io.emit('newMessage', { conversation_id, sender_id, content });
-
-//     res.status(201).json({ message: 'Message sent' });
-//   });
-// });
-
-// // Configura socket.io para la mensajería en tiempo real
-// io.on('connection', (socket) => {
-
-//   // Emitir un mensaje a un cliente específico si es necesario
-//   socket.on('joinConversation', (conversationId) => {
-//     socket.join(conversationId);
-//   });
-
-//   socket.on('sendMessage', (message) => {
-//     socket.to(message.conversationId).emit('newMessage', message);
-//   });
-
-//   socket.on('disconnect', () => {
-//     console.log('user disconnected');
-//   });
-// });
-
 
 // Endpoint para obtener los usuarios que siguen al usuario actual para menssager
 app.get('/users/following', authenticateToken, async (req, res) => {
@@ -884,9 +848,112 @@ app.get('/users/search', authenticateToken, async (req, res) => {
   }
 });
 
-// app.get('/messager', (req, res) => {
-//   res.sendFile(process.cwd() + '/reports/index.html')
-// })
+
+
+
+app.get('/messages/conversations', authenticateToken, async (req, res) => {
+  try {
+    const {userId} = req.user;
+
+   const [rows] = await db.promise().query(
+      `SELECT DISTINCT 
+        u.id, u.username, u.profile_picture,
+        (SELECT m2.content 
+         FROM messages m2 
+         WHERE (m2.sender_id = ? AND m2.receiver_id = u.id) 
+         OR (m2.sender_id = u.id AND m2.receiver_id = ?) 
+         ORDER BY m2.created_at DESC 
+         LIMIT 1) as last_message,
+        (SELECT m3.created_at 
+         FROM messages m3 
+         WHERE (m3.sender_id = ? AND m3.receiver_id = u.id) 
+         OR (m3.sender_id = u.id AND m3.receiver_id = ?) 
+         ORDER BY m3.created_at DESC 
+         LIMIT 1) as last_message_time
+       FROM messages m
+       JOIN users u ON (m.sender_id = u.id OR m.receiver_id = u.id)
+       WHERE m.sender_id = ? OR m.receiver_id = ?
+       GROUP BY u.id
+       ORDER BY last_message_time DESC`,
+      [userId, userId, userId, userId, userId, userId]
+    );
+
+    const formattedConversations = rows.map(conv => ({
+      id: conv.id,
+      user: {
+        id: conv.id,
+        username: conv.username,
+        profile_picture: conv.profile_picture
+      },
+      lastMessage: conv.last_message ? {
+        content: conv.last_message,
+        created_at: conv.last_message_time
+      } : null
+    }));
+
+    res.json(formattedConversations);
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    res.status(500).json({ message: 'Error fetching conversations' });
+  }
+});
+
+
+// Message endpoints
+app.get('/messages/:userId', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user.userId;
+   
+    const [rows] = await db.promise().query(
+      `SELECT m.*, u.username as sender_username 
+       FROM messages m 
+       JOIN users u ON m.sender_id = u.id 
+       WHERE (m.sender_id = ? AND m.receiver_id = ?) 
+       OR (m.sender_id = ? AND m.receiver_id = ?) 
+       ORDER BY m.created_at ASC`,
+      [currentUserId, userId, userId, currentUserId]
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).json({ message: 'Error fetching messages' });
+  }
+});
+
+app.post('/messages', authenticateToken, async (req, res) => {
+  try {
+    const { receiver_id, content } = req.body;
+    const sender_id = req.user.userId;
+    console.log('Message content:', content);
+    
+    // Insert the message into the database
+    const [rows] = await db.promise().query(
+      'INSERT INTO messages (sender_id, receiver_id, content) VALUES (?, ?, ?)',
+      [sender_id, receiver_id, content]
+    );
+
+    // After inserting, get the inserted message from the database using the insertId
+    const [messageResult] = await db.promise().query(
+      'SELECT m.*, u.username as sender_username FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.id = ?',
+      [rows.insertId] // Use rows.insertId instead of result.insertId
+    );
+
+    // Emit the message through Socket.io
+    io.to(`user_${receiver_id}`).emit('message', messageResult[0]);
+
+    // Return the inserted message to the client
+    res.json(messageResult[0]);
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ message: 'Error sending message' });
+  }
+});
+
+
+
+
 
 
 // Delete post endpoint
@@ -926,68 +993,143 @@ app.delete('/posts/:postId', authenticateToken, async (req, res) => {
 });
 
 
-// Update post endpoint with media handling
 
-// app.put('/posts/:postId', authenticateToken, upload.single('media'), async (req, res) => {
-//   const { postId } = req.params;
-//   const { content, removeMedia } = req.body;
+//update comentario
+app.put('/comments/:commentId', authenticateToken, async (req, res) => {
+  const { commentId } = req.params;  // ID del comentario a actualizar (obtenido de los parámetros)
+  const { content } = req.body;      // Contenido nuevo del comentario (en el cuerpo de la solicitud)
+  const userId = req.user.userId;    // ID del usuario del token (obtenido del middleware de autenticación)
+
+  console.log('Usuario intentando actualizar comentario:', userId);
+
+  try {
+    // Verifica si el comentario existe y si pertenece al usuario
+    const [comment] = await db.promise().query(
+      'SELECT * FROM comments WHERE id = ? AND user_id = ?',
+      [commentId, userId]
+    );
+
+    // Si el comentario no existe o no pertenece al usuario, devuelve un error 403
+    if (comment.length === 0) {
+      return res.status(403).json({ message: 'No autorizado para actualizar este comentario' });
+    }
+
+    // Si el comentario existe y pertenece al usuario, lo actualizamos
+    await db.promise().query('UPDATE comments SET content = ? WHERE id = ?', [content, commentId]);
+
+    return res.json({ message: 'Comentario actualizado exitosamente' });
+
+  } catch (error) {
+    console.error('Error al actualizar comentario:', error);
+    return res.status(500).json({ message: 'Error al actualizar el comentario' });
+  }
+});
+
+// Actualizar post
+app.put('/update/posts/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, removeMedia } = req.body;
+    const { userId } = req.user;
+
+    // Verificar conexión a la base de datos
+    if (!req.db) {
+      return res.status(500).json({ message: 'Database connection is not available' });
+    }
+
+    // Obtener el post y verificar si pertenece al usuario
+    const [post] = await req.db.execute(
+      'SELECT * FROM posts WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
+
+    if (post.length === 0) {
+      return res.status(404).json({ message: 'Post not found or unauthorized' });
+    }
+
+    // Si no hay cambios en el archivo, conservar la URL y el tipo de archivo actuales
+    let mediaUrl = post[0].media_url;
+    let mediaType = post[0].media_type;
+
+    // Manejo de archivo
+    if (req.file) {
+      // Eliminar el archivo anterior si existe
+      if (mediaUrl) {
+        const oldFilePath = path.join(__dirname, '..', mediaUrl);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
+      // Establecer la nueva URL y tipo de archivo
+      mediaUrl = '/uploads/posts/' + req.file.filename;
+      mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 'video';
+    } else if (removeMedia === 'true') {
+      // Eliminar el archivo si se solicita
+      if (mediaUrl) {
+        const oldFilePath = path.join(__dirname, '..', mediaUrl);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      }
+      mediaUrl = null;
+      mediaType = null;
+    }
+
+    // Actualizar la base de datos con los nuevos datos
+    await req.db.execute(
+      'UPDATE posts SET content = ?, media_url = ?, media_type = ? WHERE id = ?',
+      [content, mediaUrl, mediaType, id]
+    );
+
+    // Obtener el post actualizado con el nombre de usuario
+    const [updatedPost] = await req.db.execute(
+      'SELECT p.*, u.username FROM posts p JOIN users u ON p.user_id = u.id WHERE p.id = ?',
+      [id]
+    );
+
+    res.json(updatedPost[0]);
+  } catch (error) {
+    console.error('Error updating post:', error);
+    res.status(500).json({ message: 'Error updating post' });
+  }
+});
+
+// // Actualizar nombre de usuario
+// app.put('/users/profile', authenticateToken, async (req, res) => {
+//   const { username } = req.body;
 //   const userId = req.user.id;
 
 //   try {
-//     // Check if post exists and belongs to user
-//     const [post] = await db.promise().query(
-//       'SELECT * FROM posts WHERE id = ? AND user_id = ?',
-//       [postId, userId]
-//     );
-
-//     if (post.length === 0) {
-//       return res.status(403).json({ message: 'Not authorized to update this post' });
+//     const existingUser = await getUserByUsername(username);
+//     if (existingUser) {
+//       return res.status(409).json({ message: 'Username already taken' });
 //     }
 
-//     let mediaUrl = post[0].media_url;
-//     let mediaType = post[0].media_type;
-
-//     // Handle media removal if requested
-//     if (removeMedia === 'true' && post[0].media_url) {
-//       const filePath = path.join(__dirname, post[0].media_url);
-//       if (fs.existsSync(filePath)) {
-//         fs.unlinkSync(filePath);
-//       }
-//       mediaUrl = null;
-//       mediaType = null;
-//     }
-
-//     // Handle new media upload
-//     if (req.file) {
-//       // Remove old media if it exists
-//       if (post[0].media_url) {
-//         const oldFilePath = path.join(__dirname, post[0].media_url);
-//         if (fs.existsSync(oldFilePath)) {
-//           fs.unlinkSync(oldFilePath);
-//         }
-//       }
-
-//       mediaUrl = '/uploads/' + req.file.filename;
-//       mediaType = req.file.mimetype.startsWith('image/') ? 'image' : 'video';
-//     }
-
-//     // Update post
-//     await db.promise().query(
-//       'UPDATE posts SET content = ?, media_url = ?, media_type = ? WHERE id = ?',
-//       [content, mediaUrl, mediaType, postId]
-//     );
-
-//     res.json({
-//       message: 'Post updated successfully',
-//       content,
-//       mediaUrl,
-//       mediaType
-//     });
+//     const updatedUser = await updateUser(userId, { username });
+//     res.json(updatedUser);
 //   } catch (error) {
-//     console.error('Error updating post:', error);
-//     res.status(500).json({ message: 'Error updating post' });
+//     res.status(500).json({ message: 'Failed to update username' });
 //   }
 // });
+
+
+
+
+// Eliminar cuenta
+app.delete('/users/profile/:userId/del', authenticateToken, async (req, res) => {
+  const { userId } = req.params;
+
+  if (req.user.id !== userId) {
+    return res.status(403).json({ message: 'You are not authorized to delete this account' });
+  }
+
+  try {
+    await deleteUser(userId); // Eliminar usuario de la base de datos
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to delete account' });
+  }
+});
 
 // Delete comment endpoint
 app.delete('/comments/:commentId', authenticateToken, async (req, res) => {

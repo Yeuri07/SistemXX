@@ -61,11 +61,11 @@ const Feed: React.FC<FeedProps> = ({ currentUser, authToken }) => {
     }
   };
 
-  const getUserProfilePicture = () => {
-    return profilePicture 
-      ? `http://localhost:5000${profilePicture}`
-      : `https://api.dicebear.com/6.x/initials/svg?seed=${currentUser.username}`;
-  };
+  // const getUserProfilePicture = () => {
+  //   return profilePicture 
+  //     ? `http://localhost:5000${profilePicture}`
+  //     : `https://api.dicebear.com/6.x/initials/svg?seed=${currentUser.username}`;
+  // };
 
   const clearSelectedMedia = () => {
     setSelectedMedia(null);
@@ -266,6 +266,7 @@ const Feed: React.FC<FeedProps> = ({ currentUser, authToken }) => {
               authToken={authToken}
               onLike={() => handleLikePost(post.id)}
               onComment={(comment) => handleCommentPost(post.id, comment)}
+              onPostUpdate={handlePostUpdate}  //
             />
           ))}
         </div>

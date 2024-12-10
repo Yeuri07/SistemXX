@@ -31,9 +31,12 @@ const Post: React.FC<PostProps> = ({
   currentUser,
   authToken,
   onPostUpdate,
-
   onPostDelete,
 }) => {
+  useEffect(() => {
+  
+  }, [onPostUpdate]);
+  
   const [comments, setComments] = useState([]);
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState('');
@@ -41,7 +44,6 @@ const Post: React.FC<PostProps> = ({
   const [isLiked, setIsLiked] = useState(false);
   const [localLikesCount, setLocalLikesCount] = useState(initialLikesCount || 0);
   const [selectedMedia, setSelectedMedia] = useState<File | null>(null);
-  const { profilePicture } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(content);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
@@ -98,16 +100,11 @@ const Post: React.FC<PostProps> = ({
   const handleUpdatePost = async () => {
     const formData = new FormData();
     formData.append('content', editedContent);
-    
+  
     if (selectedMedia) {
       formData.append('media', selectedMedia);
     }
-    
-    // If we want to remove the existing media
-    if (!selectedMedia && !media_url) {
-      formData.append('removeMedia', 'true');
-    }
-
+  
     try {
       const response = await fetch(`http://localhost:5000/posts/${id}`, {
         method: 'PUT',
@@ -116,13 +113,17 @@ const Post: React.FC<PostProps> = ({
         },
         body: formData,
       });
-
+  
       if (!response.ok) {
         throw new Error('Failed to update post');
       }
-
+  
+      // Imprimir la respuesta completa del servidor para verificar qué se está devolviendo
       const updatedPost = await response.json();
-      onPostUpdate(id, editedContent);
+      console.log('Updated post from server:', updatedPost);  // Imprimir los datos del post actualizado
+  
+      onPostUpdate(id, updatedPost.content);  // Actualizar el frontend
+  
       setIsEditing(false);
       setSelectedMedia(null);
       setMediaPreview(null);
@@ -130,6 +131,9 @@ const Post: React.FC<PostProps> = ({
       console.error('Error updating post:', error);
     }
   };
+  
+  
+  
 
   const handleDeleteComment = async (commentId: number) => {
     try {

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Bell, Mail, User, LogOut } from 'lucide-react'
+import { Home, Bell, Mail, User, LogOut,Settings } from 'lucide-react'
 import logo from '../../public/Logoxx.png'
 
 interface SidebarProps {
@@ -16,6 +16,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentUser, onLogout }) => {
     { icon: Bell, label: 'Notifications', path: '/notifications' },
     { icon: Mail, label: 'Messages', path: '/messages' },
     { icon: User, label: 'Profile', path: '/profile' },
+    { icon: Settings, label: 'Settings', path: '/settings' },
   ]
 
   return (

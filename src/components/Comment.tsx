@@ -34,23 +34,22 @@ const Comment: React.FC<CommentProps> = ({
  
   const handleUpdateComment = async () => {
     try {
-      const body = JSON.stringify({
-        comment: onCommentUpdate, // Asegúrate de que esta variable es un string o un objeto plano
-      });
-  
-      const response = await fetch(`/posts/${postId}/comments/${commentId}`, {
+      const response = await fetch(`http://localhost:5000/comments/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`,
         },
-        body: JSON.stringify({ content: newContent }),
+        body: JSON.stringify({ content: editedContent }),
       });
   
       if (!response.ok) {
         throw new Error('Failed to update comment');
       }
   
-      console.log('Comment updated successfully!');
+      const updatedComment = await response.json();
+      onCommentUpdate(id, editedContent); // Llama a la función para actualizar el comentario en el estado
+      setIsEditing(false);
     } catch (error) {
       console.error('Error updating comment:', error);
     }

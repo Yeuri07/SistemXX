@@ -17,6 +17,8 @@ import Sidebar from './components/Sidebar'
 import { connectSocket, disconnectSocket } from './services/socket'
 import { UserProvider } from './context/UserContext'
 import UserSearch from './components/UserSearch'
+import Settings from './components/Setting'
+
 
 interface LayoutProps {
   currentUser: any;
@@ -82,6 +84,7 @@ function App() {
             <Route path="messages" element={<Messages currentUser={currentUser} authToken={authToken} />} />
             <Route path="profile" element={<Profile user={currentUser} authToken={authToken} />} />
             <Route path="profile/:username" element={<Profile user={currentUser} authToken={authToken} />} />
+            <Route path="settings" element={<Settings user={currentUser} authToken={authToken} />} /> 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         ) : (
